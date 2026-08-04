@@ -1,8 +1,10 @@
 // src/pages/ProductDetailPage.tsx
+ // useMutation اضافه شد
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { api } from '../services/api';
+
 
 // ۱. تعریف دقیق ساختار دیتایی که از بک‌اند جنگو میاد (Interface)
 interface Variant {
@@ -29,7 +31,13 @@ interface ProductDetailData {
   images: ProductImage[];
   variants: Variant[];
 }
-
+const addToCart = async (variantId: number) => {
+  const response = await api.post('/cart/items/', {
+    variant: variantId,
+    quantity: 1, // فعلا پیش‌فرض ۱ دونه اضافه می‌کنیم
+  });
+  return response.data;
+};
 function ProductDetailPage() {
   const { id } = useParams();
   
@@ -52,7 +60,28 @@ function ProductDetailPage() {
   const currentVariant = selectedVariantId 
     ? product.variants.find(v => v.id === selectedVariantId) 
     : product.variants[0];
+  const mutation = useMutation({
+    mutationFn: addToCart,
+    onSuccess: () => {
+      alert('Successfully added to cart!'); // فعلا یه alert ساده میذاریم
+      // تو فازهای بعدی میتونیم اینجا یه پیام شیک (Toast) نشون بدیم
+    },
+    onError: (error: any) => {
+      // اگر ارور 401 (لاگین نبودن) داد
+      if (error.response?.status === 401) {
+        alert('Please login to add items to your cart.');
+      } else {
+        alert('Failed to add to cart. Please try again.');
+      }
+    }
+  });
 
+  // تابعی که به دکمه وصل میشه
+  const handleAddToCart = () => {
+    if (currentVariant) {
+      mutation.mutate(currentVariant.id);
+    }
+  };
   return (
     <div className="p-8 bg-gray-50 min-h-screen">
       <Link to="/" className="text-blue-500 hover:underline mb-6 inline-block">
