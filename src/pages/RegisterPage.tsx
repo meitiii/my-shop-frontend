@@ -6,14 +6,17 @@ import { useMutation } from '@tanstack/react-query';
 import { api } from '../services/api';
 import { useNavigate, Link } from 'react-router-dom';
 
-// ۱. تعریف اسکیما با ۳ فیلد + اعتبارسنجی تطابق پسوردها
+// ۱. به‌روزرسانی اسکیما: افزودن فیلدهای جدید و تغییر طول پسورد به حداقل ۸
 const registerSchema = z.object({
+  username: z.string().min(3, "Username must be at least 3 characters"),
+  first_name: z.string().min(1, "First name is required"),
+  last_name: z.string().min(1, "Last name is required"),
   email: z.string().email("Please enter a valid email address"),
-  password: z.string().min(6, "Password must be at least 6 characters"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
   confirmPassword: z.string()
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords do not match",
-  path: ["confirmPassword"], // ارور رو به فیلد تایید پسورد وصل میکنه
+  path: ["confirmPassword"],
 });
 
 type RegisterFormData = z.infer<typeof registerSchema>;
@@ -29,26 +32,31 @@ function RegisterPage() {
     resolver: zodResolver(registerSchema),
   });
 
-  // ۲. ارسال ریکوئست ثبت‌نام به جنگو
+  // ۲. ارسال تمام اطلاعات لازم به بک‌اند
   const registerMutation = useMutation({
     mutationFn: async (data: RegisterFormData) => {
-      // بک‌اند فقط ایمیل و پسورد رو نیاز داره، confirmPassword رو نمیفرستیم
       const payload = {
+        username: data.username,
+        first_name: data.first_name,
+        last_name: data.last_name,
         email: data.email,
         password: data.password,
       };
-      const response = await api.post('/users/register/', payload); // مسیر API خودت رو چک کن. من فرض کردم /users/register/ هست
+      // آدرس API ثبت‌نام خودت رو جایگزین کن (مثلاً /users/register/ یا /api/register/)
+      const response = await api.post('/users/register/', payload);
       return response.data;
     },
     onSuccess: () => {
       alert("Registration successful! Please login.");
-      // هدایت به صفحه لاگین
       navigate('/login');
     },
     onError: (error: any) => {
-      // نمایش ارورهای برگشتی از جنگو (مثلا اگر ایمیل تکراری باشه)
-      const errorMessage = error.response?.data?.email?.[0] || 
-                           error.response?.data?.error || 
+      // استخراج خطاهای ممکن از سمت serializers بک‌اند
+      const responseData = error.response?.data;
+      const errorMessage = responseData?.username?.[0] ||
+                           responseData?.email?.[0] ||
+                           responseData?.password?.[0] ||
+                           responseData?.error ||
                            "An error occurred during registration.";
       alert(errorMessage);
     }
@@ -59,11 +67,55 @@ function RegisterPage() {
   };
 
   return (
-    <div className="min-h-[80vh] flex items-center justify-center bg-gray-50 p-4">
+    <div className="min-h-[85vh] flex items-center justify-center bg-gray-50 p-4 my-6">
       <div className="max-w-md w-full bg-white rounded-xl shadow-lg p-8">
         <h2 className="text-3xl font-bold text-center text-gray-800 mb-8">Create an Account</h2>
         
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          {/* فیلد Username */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Username</label>
+            <input
+              {...register('username')}
+              type="text"
+              className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:outline-none transition-colors ${
+                errors.username ? 'border-red-500 focus:ring-red-200' : 'border-gray-300 focus:ring-blue-200'
+              }`}
+              placeholder="johndoe"
+            />
+            {errors.username && <p className="text-red-500 text-sm mt-1">{errors.username.message}</p>}
+          </div>
+
+          {/* فیلدهای First Name و Last Name در یک ردیف */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
+              <input
+                {...register('first_name')}
+                type="text"
+                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:outline-none transition-colors ${
+                  errors.first_name ? 'border-red-500 focus:ring-red-200' : 'border-gray-300 focus:ring-blue-200'
+                }`}
+                placeholder="John"
+              />
+              {errors.first_name && <p className="text-red-500 text-sm mt-1">{errors.first_name.message}</p>}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
+              <input
+                {...register('last_name')}
+                type="text"
+                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:outline-none transition-colors ${
+                  errors.last_name ? 'border-red-500 focus:ring-red-200' : 'border-gray-300 focus:ring-blue-200'
+                }`}
+                placeholder="Doe"
+              />
+              {errors.last_name && <p className="text-red-500 text-sm mt-1">{errors.last_name.message}</p>}
+            </div>
+          </div>
+
+          {/* فیلد Email */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
             <input
@@ -77,6 +129,7 @@ function RegisterPage() {
             {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email.message}</p>}
           </div>
 
+          {/* فیلد Password */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
             <input
@@ -85,11 +138,12 @@ function RegisterPage() {
               className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:outline-none transition-colors ${
                 errors.password ? 'border-red-500 focus:ring-red-200' : 'border-gray-300 focus:ring-blue-200'
               }`}
-              placeholder="Min 6 characters"
+              placeholder="Min 8 characters"
             />
             {errors.password && <p className="text-red-500 text-sm mt-1">{errors.password.message}</p>}
           </div>
 
+          {/* فیلد Confirm Password */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
             <input
@@ -106,7 +160,7 @@ function RegisterPage() {
           <button
             type="submit"
             disabled={registerMutation.isPending}
-            className="w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 transition-colors disabled:bg-blue-400"
+            className="w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 transition-colors disabled:bg-blue-400 mt-2"
           >
             {registerMutation.isPending ? 'Creating account...' : 'Sign Up'}
           </button>
