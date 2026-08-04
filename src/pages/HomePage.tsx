@@ -1,7 +1,7 @@
 // src/App.tsx
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../services/api';
-
+import { Link } from 'react-router-dom';
 interface Product {
   id: number;
   name: string;
@@ -30,9 +30,15 @@ function HomePage() {
       
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {products?.map((product: Product) => (
-          <div key={product.id} className="bg-white p-4 rounded-lg shadow-md border border-gray-100 hover:shadow-lg transition-shadow">
+          // به جای div از Link استفاده کردیم تا قابل کلیک بشه
+          <Link 
+            to={`/product/${product.id}`} 
+            key={product.id} 
+            className="block bg-white p-4 rounded-lg shadow-md border border-gray-100 hover:shadow-lg hover:-translate-y-1 transition-all"
+          >
             <h2 className="text-xl font-bold text-gray-800">{product.name}</h2>
-          </div>
+            <p className="text-sm text-blue-500 mt-2">مشاهده جزئیات</p>
+          </Link>
         ))}
       </div>
     </div>
