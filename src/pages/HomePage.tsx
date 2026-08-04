@@ -1,6 +1,6 @@
 // src/App.tsx
 import { useQuery } from '@tanstack/react-query';
-import { api } from './services/api';
+import { api } from '../services/api';
 
 interface Product {
   id: number;
@@ -13,7 +13,7 @@ const fetchProducts = async () => {
   return response.data.results;
 };
 
-function App() {
+function HomePage() {
   // استفاده از هوشِ React Query
   const { data: products, isLoading, isError, error } = useQuery({
     queryKey: ['products'], // کلید منحصر‌به‌فرد
@@ -39,4 +39,4 @@ function App() {
   );
 }
 
-export default App;
+export default HomePage ;
