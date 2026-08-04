@@ -37,7 +37,7 @@ api.interceptors.response.use(
         try {
           // سعی میکنیم با رفرش توکن، یه اکسس توکن جدید بگیریم
           // نکته: اینجا از axios خام استفاده میکنیم نه api، تا دوباره تو اینترسپتور نیفته
-          const response = await axios.post('http://127.0.0.1:8000/api/token/refresh/', {
+          const response = await axios.post('http://127.0.0.1:8000/api/refresh/', {
             refresh: refreshToken,
           });
 
