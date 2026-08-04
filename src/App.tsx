@@ -6,6 +6,7 @@ import CartPage from './pages/CartPage';
 import OrdersPage from './pages/OrdersPage';
 import LoginPage from './pages/LoginPage';
 import { useAuthStore } from './store/authStore'; // ایمپورت کردن استور
+import RegisterPage from './pages/RegisterPage';
 
 function App() {
   // گرفتن توکن و تابع خروج از استور Zustand
@@ -65,6 +66,7 @@ function App() {
           <Route path="/orders" element={<OrdersPage />} />
           <Route path="/login" element={<LoginPage />} />
           {/* صفحه Register رو هم به زودی می‌سازیم، پس فعلا خطاش 404 میده که طبیعیه */}
+          <Route path="/register" element={<RegisterPage />} />
           <Route path="*" element={<div className="p-8 text-center text-red-500">Page Not Found (404)</div>} />
         </Routes>
       </main>

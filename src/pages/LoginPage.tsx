@@ -7,20 +7,18 @@ import { api } from '../services/api';
 import { useAuthStore } from '../store/authStore';
 import { useNavigate, Link } from 'react-router-dom';
 
-// ۱. تعریف اسکیما با Zod
+// ۱. تغییر از username به email تو اسکیما
 const loginSchema = z.object({
-  username: z.string().min(1, "Username is required"),
+  email: z.string().email("Please enter a valid email address"),
   password: z.string().min(1, "Password is required"),
 });
 
-// استخراج تایپ از اسکیما
 type LoginFormData = z.infer<typeof loginSchema>;
 
 function LoginPage() {
   const setAccessToken = useAuthStore((state) => state.setAccessToken);
   const navigate = useNavigate();
 
-  // ۲. راه‌اندازی React Hook Form
   const {
     register,
     handleSubmit,
@@ -29,21 +27,23 @@ function LoginPage() {
     resolver: zodResolver(loginSchema),
   });
 
-  // ۳. ارسال ریکوئست به جنگو
   const loginMutation = useMutation({
     mutationFn: async (data: LoginFormData) => {
-      const response = await api.post('/token/', data); // این همون آدرسیه که تو SimpleJWT تنظیم کردیم
+      // الان دیتا شامل { email: '...', password: '...' } هست که دقیقاً همون چیزیه که جنگو میخواد
+      const response = await api.post('/token/', data); 
       return response.data;
     },
     onSuccess: (data) => {
-      // ذخیره توکن تو استور Zustand
       setAccessToken(data.access);
-      
-      // هدایت کاربر به صفحه اصلی
       navigate('/');
     },
-    onError: () => {
-      alert("Invalid username or password.");
+    onError: (error: any) => {
+      // اگر ۴۰۱ داد یعنی ایمیل یا پسورد اشتباهه
+      if (error.response?.status === 401) {
+          alert("Invalid email or password.");
+      } else {
+          alert("An error occurred during login.");
+      }
     }
   });
 
@@ -58,16 +58,17 @@ function LoginPage() {
         
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Username</label>
+            {/* ۲. لیبل و تایپ فیلد به ایمیل تغییر کرد */}
+            <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
             <input
-              {...register('username')}
-              type="text"
+              {...register('email')}
+              type="email"
               className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:outline-none transition-colors ${
-                errors.username ? 'border-red-500 focus:ring-red-200' : 'border-gray-300 focus:ring-blue-200'
+                errors.email ? 'border-red-500 focus:ring-red-200' : 'border-gray-300 focus:ring-blue-200'
               }`}
-              placeholder="Enter your username"
+              placeholder="you@example.com"
             />
-            {errors.username && <p className="text-red-500 text-sm mt-1">{errors.username.message}</p>}
+            {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email.message}</p>}
           </div>
 
           <div>
