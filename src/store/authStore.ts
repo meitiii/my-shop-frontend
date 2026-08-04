@@ -3,21 +3,25 @@ import { create } from 'zustand';
 
 interface AuthState {
   accessToken: string | null;
-  setAccessToken: (token: string) => void;
-  logout: () => void; // این خط به اینترفیس اضافه شد
+  refreshToken: string | null;
+  // تابعمون رو تغییر دادیم که هر دو توکن رو بگیره
+  setTokens: (access: string, refresh: string) => void;
+  logout: () => void;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
   accessToken: localStorage.getItem('access'), 
+  refreshToken: localStorage.getItem('refresh'), // اضافه شد
   
-  setAccessToken: (token) => {
-    localStorage.setItem('access', token);
-    set({ accessToken: token });
+  setTokens: (access, refresh) => {
+    localStorage.setItem('access', access);
+    localStorage.setItem('refresh', refresh); // اضافه شد
+    set({ accessToken: access, refreshToken: refresh });
   },
   
-  // تابع خروج: هم از مرورگر پاک میکنه، هم از حافظه موقتِ ریکت
   logout: () => {
     localStorage.removeItem('access'); 
-    set({ accessToken: null }); 
+    localStorage.removeItem('refresh'); // اضافه شد
+    set({ accessToken: null, refreshToken: null }); 
   },
 }));

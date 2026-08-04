@@ -2,52 +2,74 @@
 import axios from 'axios';
 import { useAuthStore } from '../store/authStore';
 
-// ۱. ساخت نمونه (Instance) از Axios
 export const api = axios.create({
-  baseURL: 'http://127.0.0.1:8000/api', // حتماً آدرس پایه بک‌اند خودت رو چک کن
+  baseURL: 'http://127.0.0.1:8000/api', 
 });
 
-// ۲. Request Interceptor (رهگیر درخواست‌ها)
+// Request Interceptor: مثل قبل کار میکنه
 api.interceptors.request.use(
   (config) => {
-    // گرفتن توکن از Zustand
-    // نکته: چون اینجا داخل یک کامپوننت React نیستیم، نمی‌تونیم از هوک استفاده کنیم.
-    // به جاش از متد .getState() استفاده می‌کنیم.
     const token = useAuthStore.getState().accessToken;
-    
-    // اگر توکن وجود داشت، اون رو به هدر اضافه کن
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-    
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
-// ۳. Response Interceptor (رهگیر جواب‌ها از سمت سرور)
+// Response Interceptor: هوشمندسازی برای Refresh Token
 api.interceptors.response.use(
   (response) => {
-    // اگر ریکوئست موفق بود که همون جواب رو برگردون
     return response;
   },
-  (error) => {
-    // اگر ارور ۴۰۱ (غیرمجاز / توکن منقضی) دریافت کردیم
-    if (error.response?.status === 401) {
-      console.warn("Token expired or invalid. Logging out...");
+  async (error) => {
+    // گرفتن ریکوئستی که به ارور خورده
+    const originalRequest = error.config;
+
+    // اگر ارور 401 بود و قبلاً سعی نکرده بودیم ریکوئست رو دوباره بفرستیم (_retry یه فلگ کاستوم هست)
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true; // علامت میزنیم که تو لوپ بی‌نهایت نیفتیم
       
-      // توکن رو از سیستم پاک کن
-      useAuthStore.getState().logout();
-      
-      // کاربر رو بفرست به صفحه لاگین
-      // (چون هوک useNavigate اینجا کار نمیکنه از window.location استفاده میکنیم)
-      if (window.location.pathname !== '/login') {
+      const refreshToken = useAuthStore.getState().refreshToken;
+
+      if (refreshToken) {
+        try {
+          // سعی میکنیم با رفرش توکن، یه اکسس توکن جدید بگیریم
+          // نکته: اینجا از axios خام استفاده میکنیم نه api، تا دوباره تو اینترسپتور نیفته
+          const response = await axios.post('http://127.0.0.1:8000/api/token/refresh/', {
+            refresh: refreshToken,
+          });
+
+          const newAccessToken = response.data.access;
+          
+          // اگر جنگو یه رفرش توکن جدید هم داد اونم میگیریم، وگرنه همون قبلی رو نگه میداریم
+          const newRefreshToken = response.data.refresh || refreshToken;
+
+          // آپدیت کردن استور و لوکال استوریج با توکن‌های جدید
+          useAuthStore.getState().setTokens(newAccessToken, newRefreshToken);
+
+          // تغییر هدرِ ریکوئستِ قبلی با توکن جدید
+          originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+
+          // اجرای دوباره‌ی همون ریکوئستی که फेल شده بود!
+          return api(originalRequest);
+          
+        } catch (refreshError) {
+          // اگر خود رفرش توکن هم منقضی شده بود، دیگه واقعاً باید کاربر رو بیرون بندازیم
+          console.warn("Refresh token expired. Logging out...");
+          useAuthStore.getState().logout();
+          window.location.href = '/login';
+          return Promise.reject(refreshError);
+        }
+      } else {
+        // اگر کلا رفرش توکن نداشتیم
+        useAuthStore.getState().logout();
         window.location.href = '/login';
       }
     }
-    
+
+    // اگر ارور 401 نبود یا مربوط به رفرش توکن نبود، ارور رو عادی برگردون
     return Promise.reject(error);
   }
-);  
+);

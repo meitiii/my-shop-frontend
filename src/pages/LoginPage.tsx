@@ -16,7 +16,7 @@ const loginSchema = z.object({
 type LoginFormData = z.infer<typeof loginSchema>;
 
 function LoginPage() {
-  const setAccessToken = useAuthStore((state) => state.setAccessToken);
+  const setTokens = useAuthStore((state) => state.setTokens); // جایگزین setAccessToken شد;
   const navigate = useNavigate();
 
   const {
@@ -34,7 +34,8 @@ function LoginPage() {
       return response.data;
     },
     onSuccess: (data) => {
-      setAccessToken(data.access);
+      // حالا هر دو توکن (access و refresh) رو که جنگو میده ذخیره می‌کنیم
+      setTokens(data.access, data.refresh);
       navigate('/');
     },
     onError: (error: any) => {
