@@ -2,7 +2,7 @@
 import { Routes, Route, Link } from 'react-router-dom'; // BrowserRouter پاک شد
 import HomePage from './pages/HomePage';
 import ProductDetailPage from './pages/ProductDetailPage';
-
+import CartPage from './pages/CartPage';
 function App() {
   return (
     // به جای BrowserRouter از یک تگ خالی (Fragment) استفاده می‌کنیم
@@ -21,6 +21,7 @@ function App() {
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/product/:id" element={<ProductDetailPage />} />
+          <Route path="/cart" element={<CartPage />} />
           <Route path="*" element={<div className="p-8 text-center text-red-500">صفحه پیدا نشد (۴۰۴)</div>} />
         </Routes>
       </main>
