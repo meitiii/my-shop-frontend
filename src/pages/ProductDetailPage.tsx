@@ -157,14 +157,17 @@ function ProductDetailPage() {
                 </div>
                 
                 <button 
-                  disabled={currentVariant.stock === 0}
+                  onClick={handleAddToCart} // این اضافه شد
+                  disabled={currentVariant.stock === 0 || mutation.isPending} // isPending اضافه شد
                   className={`px-8 py-3 rounded-lg font-bold text-white transition-colors ${
-                    currentVariant.stock > 0 
+                    currentVariant.stock > 0 && !mutation.isPending
                       ? 'bg-blue-600 hover:bg-blue-700' 
                       : 'bg-gray-400 cursor-not-allowed'
                   }`}
                 >
-                  {currentVariant.stock > 0 ? 'Add to Cart' : 'Out of Stock'}
+                  {mutation.isPending 
+                    ? 'Adding...' 
+                    : currentVariant.stock > 0 ? 'Add to Cart' : 'Out of Stock'}
                 </button>
               </div>
             ) : (
