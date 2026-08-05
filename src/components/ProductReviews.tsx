@@ -47,8 +47,7 @@ export default function ProductReviews({ productId }: { productId: string | unde
     },
     enabled: !!productId, // فقط زمانی ریکوئست بزن که ID محصول وجود داشته باشه
   });
-
-  // ارسال نظر جدید به سرور
+// ارسال نظر جدید به سرور
   const submitReviewMutation = useMutation({
     mutationFn: async (data: ReviewFormData) => {
       const payload = {
@@ -61,14 +60,20 @@ export default function ProductReviews({ productId }: { productId: string | unde
     },
     onSuccess: () => {
       alert('Review submitted successfully!');
-      reset(); // خالی کردن فرم
-      queryClient.invalidateQueries({ queryKey: ['reviews', productId] }); // رفرش کردن لیست کامنت‌ها
+      reset(); 
+      queryClient.invalidateQueries({ queryKey: ['reviews', productId] }); 
     },
     onError: (error: any) => {
-      alert(error.response?.data?.error || 'Failed to submit review.');
+      // اینجا ارور رو زیباتر مدیریت می‌کنیم
+      const status = error.response?.status;
+      if (status === 500) {
+        // چون تو بک‌اند ارور 500 (Unique Constraint) میده، این شرط رو میذاریم
+        alert("You have already submitted a review for this product.");
+      } else {
+        alert(error.response?.data?.error || 'Failed to submit review. Please try again.');
+      }
     },
   });
-
   const onSubmit = (data: ReviewFormData) => {
     submitReviewMutation.mutate(data);
   };
