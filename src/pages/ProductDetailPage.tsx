@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { api } from '../services/api';
+import ProductReviews from '../components/ProductReviews';
 
 interface Variant {
   id: number;
@@ -170,6 +171,8 @@ function ProductDetailPage() {
           
         </div>
       </div>
+      {/* بخش نظرات */}
+    <ProductReviews productId={id} />
     </div>
   );
 }
