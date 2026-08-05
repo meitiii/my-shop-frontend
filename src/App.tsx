@@ -1,4 +1,5 @@
 // src/App.tsx
+import ProfilePage from './pages/ProfilePage';
 import { Routes, Route, Link, useNavigate } from 'react-router-dom';
 import HomePage from './pages/HomePage';
 import ProductDetailPage from './pages/ProductDetailPage';
@@ -34,6 +35,7 @@ function App() {
             {/* شرط‌گذاری: اگر کاربر لاگین کرده بود */}
             {isAuthenticated ? (
               <>
+                <Link to="/profile" className="text-gray-600 hover:text-blue-600">Profile</Link>
                 <Link to="/cart" className="text-gray-600 hover:text-blue-600">Cart</Link>
                 <Link to="/orders" className="text-gray-600 hover:text-blue-600">My Orders</Link>
                 <button 
@@ -67,6 +69,7 @@ function App() {
           <Route path="/login" element={<LoginPage />} />
           {/* صفحه Register رو هم به زودی می‌سازیم، پس فعلا خطاش 404 میده که طبیعیه */}
           <Route path="/register" element={<RegisterPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
           <Route path="*" element={<div className="p-8 text-center text-red-500">Page Not Found (404)</div>} />
         </Routes>
       </main>
