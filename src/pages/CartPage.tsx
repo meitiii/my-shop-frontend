@@ -35,7 +35,7 @@ function CartPage() {
   // انجام عملیات Checkout
   const checkoutMutation = useMutation({
     mutationFn: checkoutCart,
-    onSuccess: (data) => {
+    onSuccess: () => {
       alert('Order successfully placed!');
       // پاک کردن کش ریکت‌کوئری برای سبد خرید (چون بعد از چک‌اوت سبد خالی میشه)
       queryClient.invalidateQueries({ queryKey: ['cart'] });

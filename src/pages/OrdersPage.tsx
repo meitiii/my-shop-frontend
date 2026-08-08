@@ -1,5 +1,5 @@
 // src/pages/OrdersPage.tsx
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { api } from '../services/api';
 import { Link } from 'react-router-dom';
 
@@ -20,11 +20,9 @@ interface Order {
 
 const fetchOrders = async () => {
   const response = await api.get('/orders/');
-  // مدیریت ساختار صفحه‌بندی (Pagination)
   return response.data.results || response.data;
 };
 
-// یک تابع کمکی برای رنگ‌آمیزی وضعیت سفارش
 const getStatusColor = (status: string) => {
   switch (status) {
     case 'pending': return 'bg-yellow-100 text-yellow-800';
@@ -42,11 +40,34 @@ function OrdersPage() {
     queryFn: fetchOrders,
   });
 
+  // توابع مربوط به پرداخت باید حتما داخل کامپوننت باشن
+  const payMutation = useMutation({
+    mutationFn: async (orderId: number) => {
+      const response = await api.post(`/payments/request/${orderId}/`);
+      return response.data;
+    },
+    onSuccess: (data) => {
+      const redirectUrl = data.url || data.payment_url;
+      if (redirectUrl) {
+        window.location.href = redirectUrl;
+      } else {
+        alert("Payment URL not provided by the server.");
+      }
+    },
+    onError: (error: any) => {
+      alert(error.response?.data?.error || "Failed to initiate payment.");
+    }
+  });
+
+  const handlePayment = (orderId: number) => {
+    payMutation.mutate(orderId);
+  };
+
   if (isLoading) return <div className="p-8 text-center text-xl">Loading your orders... ⏳</div>;
   if (isError) return <div className="p-8 text-center text-red-500">Failed to load orders. Please login.</div>;
 
   return (
-    <div className="p-8 bg-gray-50 min-h-screen">
+    <div className="p-8 bg-gray-50 min-h-[85vh]">
       <div className="max-w-5xl mx-auto">
         <h1 className="text-3xl font-bold text-gray-800 mb-8">My Orders</h1>
 
@@ -62,7 +83,7 @@ function OrdersPage() {
             {orders.map((order: Order) => (
               <div key={order.id} className="bg-white rounded-lg shadow-md overflow-hidden">
                 {/* هدرِ کارتِ سفارش */}
-                <div className="bg-gray-100 p-4 flex flex-wrap justify-between items-center border-b">
+                <div className="bg-gray-100 p-4 flex flex-wrap justify-between items-center border-b gap-4">
                   <div>
                     <p className="text-sm text-gray-500">Order Placed</p>
                     <p className="font-semibold">{new Date(order.created_at).toLocaleDateString()}</p>
@@ -94,6 +115,19 @@ function OrdersPage() {
                     </div>
                   ))}
                 </div>
+
+                {/* دکمه پرداخت (فقط برای سفارش‌های پرداخت نشده) */}
+                {order.status.toLowerCase() === 'pending' && (
+                  <div className="bg-gray-50 p-4 border-t flex justify-end">
+                    <button
+                      onClick={() => handlePayment(order.id)}
+                      disabled={payMutation.isPending}
+                      className="px-6 py-2 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 transition-colors disabled:bg-gray-400"
+                    >
+                      {payMutation.isPending ? 'Connecting to Bank...' : 'Pay Now'}
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
           </div>
