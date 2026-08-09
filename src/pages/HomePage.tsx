@@ -37,7 +37,7 @@ const fetchProducts = async (search: string, categoryId: number | null) => {
 
 // ۲. تابع دریافت لیست دسته‌بندی‌ها
 const fetchCategories = async () => {
-  const response = await api.get('  /categories/'); // مسیر دسته‌بندی‌ها در جنگو
+  const response = await api.get('/categories/'); // مسیر دسته‌بندی‌ها در جنگو
   return response.data.results || response.data;
 };
 

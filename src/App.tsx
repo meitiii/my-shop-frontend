@@ -1,21 +1,27 @@
-// src/App.tsx
+
 import ProfilePage from './pages/ProfilePage';
-import { Routes, Route, Link, useNavigate } from 'react-router-dom';
 import HomePage from './pages/HomePage';
 import ProductDetailPage from './pages/ProductDetailPage';
 import CartPage from './pages/CartPage';
 import OrdersPage from './pages/OrdersPage';
 import LoginPage from './pages/LoginPage';
-import { useAuthStore } from './store/authStore'; // ایمپورت کردن استور
 import RegisterPage from './pages/RegisterPage';
 import PaymentVerifyPage from './pages/PaymentVerifyPage';
-import AdminProductsPage from './pages/admin/AdminProductsPage';
-import { Navigate } from 'react-router-dom';
 
-const AdminRoute = ({ children }: { children: JSX.Element }) => {
+import AdminProductsPage from './pages/admin/AdminProductsPage';
+import AdminProductForm from './pages/admin/AdminProductForm';
+import { useAuthStore } from './store/authStore';
+import type { ReactNode } from 'react';
+import { Routes, Route, Link, useNavigate, Navigate } from 'react-router-dom';
+const AdminRoute = ({ children }: { children: ReactNode }) => {
   const isAdmin = useAuthStore((state) => state.isAdmin);
-  // اگه ادمین نبود بفرستش صفحه اصلی
-  if (!isAdmin) return <Navigate to="/" replace />;
+
+  //console.log("AdminRoute isAdmin:", isAdmin);
+
+  if (!isAdmin) {
+    return <Navigate to="/" replace />;
+  }
+
   return children;
 };
 function App() {
@@ -81,14 +87,30 @@ function App() {
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/payment/verify" element={<PaymentVerifyPage />} />
           {/* Admin Routes */}
-          <Route 
-            path="/admin/products" 
-            element={
-              <AdminRoute>
-                <AdminProductsPage />
-              </AdminRoute>
-            } 
-          />
+          <Route
+  path="/admin/products"
+  element={
+    <AdminRoute>
+      <AdminProductsPage />
+    </AdminRoute>
+  }
+/>
+<Route 
+  path="/admin/products/new" 
+  element={
+    <AdminRoute>
+      <AdminProductForm />
+    </AdminRoute>
+  } 
+/>
+<Route 
+  path="/admin/products/edit/:id" 
+  element={
+    <AdminRoute>
+      <AdminProductForm />
+    </AdminRoute>
+  } 
+/>
           <Route path="*" element={<div className="p-8 text-center text-red-500">Page Not Found (404)</div>} />
         </Routes>
       </main>

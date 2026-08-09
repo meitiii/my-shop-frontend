@@ -34,10 +34,16 @@ function LoginPage() {
       return response.data;
     },
     onSuccess: (data) => {
-      // حالا هر دو توکن (access و refresh) رو که جنگو میده ذخیره می‌کنیم
-      setTokens(data.access, data.refresh);
-      navigate('/');
-    },
+    //console.log("LOGIN RESPONSE:", data);
+
+    setTokens(
+      data.access,
+      data.refresh,
+      data.is_staff
+    );
+
+  navigate('/');
+},
     onError: (error: any) => {
       // اگر ۴۰۱ داد یعنی ایمیل یا پسورد اشتباهه
       if (error.response?.status === 401) {
