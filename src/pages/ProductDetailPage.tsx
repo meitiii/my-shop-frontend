@@ -1,5 +1,5 @@
 // src/pages/ProductDetailPage.tsx
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { api } from '../services/api';
@@ -11,6 +11,7 @@ interface Variant {
   size: string | null;
   price: number;
   stock: number;
+  discount_percent: number; // اضافه شدن فیلد تخفیف
 }
 
 interface ProductImage {
@@ -20,7 +21,6 @@ interface ProductImage {
   is_main: boolean;
 }
 
-// Added all the new fields we created in the backend
 interface ProductDetailData {
   id: number;
   name: string;
@@ -61,6 +61,14 @@ export default function ProductDetailPage() {
     },
   });
 
+  // پیدا کردن عکس کاور و تنظیم اون به عنوان عکسی که همون اول لود میشه
+  useEffect(() => {
+    if (product?.images) {
+      const mainIndex = product.images.findIndex(img => img.is_main);
+      setActiveImageIndex(mainIndex >= 0 ? mainIndex : 0);
+    }
+  }, [product]);
+
   const mutation = useMutation({
     mutationFn: addToCart,
     onSuccess: () => {
@@ -88,9 +96,13 @@ export default function ProductDetailPage() {
     }
   };
 
+  // محاسبه قیمت تخفیف خورده برای Variant انتخاب شده
+  const originalPrice = currentVariant ? currentVariant.price : 0;
+  const discountPercent = currentVariant?.discount_percent || 0;
+  const finalPrice = originalPrice - (originalPrice * (discountPercent / 100));
+
   return (
     <div className="bg-gray-50 min-h-screen pb-12">
-      {/* Breadcrumb Navigation */}
       <div className="bg-white shadow-sm mb-8">
         <div className="max-w-6xl mx-auto px-4 py-4 flex text-sm text-gray-500">
           <Link to="/" className="hover:text-blue-600 transition-colors">Home</Link>
@@ -100,14 +112,16 @@ export default function ProductDetailPage() {
       </div>
 
       <div className="max-w-6xl mx-auto px-4 space-y-8">
-        
-        {/* Top Section: Images & Add to Cart */}
         <div className="bg-white rounded-2xl shadow-sm p-6 md:p-8 flex flex-col md:flex-row gap-10">
           
-          {/* Image Gallery */}
           <div className="md:w-1/2 flex flex-col gap-4">
-            {/* Main Image */}
-            <div className="aspect-square bg-white border rounded-2xl overflow-hidden flex items-center justify-center p-4">
+            <div className="aspect-square bg-white border rounded-2xl overflow-hidden flex items-center justify-center p-4 relative">
+              {/* برچسب تخفیف روی عکس اصلی */}
+              {discountPercent > 0 && (
+                <span className="absolute top-4 left-4 bg-red-500 text-white text-sm font-bold px-3 py-1.5 rounded-lg shadow-md z-10">
+                  {discountPercent}% OFF
+                </span>
+              )}
               {product.images?.length > 0 ? (
                 <img 
                   src={product.images[activeImageIndex]?.image} 
@@ -119,7 +133,6 @@ export default function ProductDetailPage() {
               )}
             </div>
 
-            {/* Thumbnails */}
             {product.images?.length > 1 && (
               <div className="flex gap-3 overflow-x-auto py-2 scrollbar-hide">
                 {product.images.map((img, index) => (
@@ -137,7 +150,6 @@ export default function ProductDetailPage() {
             )}
           </div>
 
-          {/* Product Info & Action */}
           <div className="md:w-1/2 flex flex-col justify-between">
             <div>
               <div className="mb-2">
@@ -163,7 +175,6 @@ export default function ProductDetailPage() {
                 </p>
               )}
 
-              {/* Variants Selector */}
               {product.variants?.length > 0 && (
                 <div className="mb-8">
                   <h3 className="font-semibold text-gray-900 mb-3">Available Options</h3>
@@ -190,13 +201,21 @@ export default function ProductDetailPage() {
               )}
             </div>
 
-            {/* Price & Checkout Area */}
             <div className="border-t border-gray-100 pt-6 mt-4">
               {currentVariant ? (
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div>
                     <p className="text-sm text-gray-500 font-medium mb-1">Total Price</p>
-                    <p className="text-4xl font-extrabold text-gray-900">${currentVariant.price}</p>
+                    <div className="flex items-end gap-3">
+                      <p className={`text-4xl font-extrabold ${discountPercent > 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                        ${finalPrice.toLocaleString()}
+                      </p>
+                      {discountPercent > 0 && (
+                        <p className="text-xl text-gray-400 line-through mb-1">
+                          ${originalPrice.toLocaleString()}
+                        </p>
+                      )}
+                    </div>
                     {currentVariant.stock > 0 && currentVariant.stock < 5 && (
                       <p className="text-orange-500 text-sm font-medium mt-2">
                         Only {currentVariant.stock} left in stock - order soon.
@@ -223,13 +242,8 @@ export default function ProductDetailPage() {
           </div>
         </div>
 
-        {/* Middle Section: Full Description & Tech Specs */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          
-          {/* Main Content Column */}
           <div className="lg:col-span-2 space-y-8">
-            
-            {/* Description */}
             <div className="bg-white rounded-2xl shadow-sm p-6 md:p-8">
               <h2 className="text-xl font-bold text-gray-900 mb-6 border-b pb-4">Product Overview</h2>
               <p className="text-gray-700 leading-loose whitespace-pre-line">
@@ -237,7 +251,6 @@ export default function ProductDetailPage() {
               </p>
             </div>
 
-            {/* Features (If any) */}
             {product.features && (
               <div className="bg-white rounded-2xl shadow-sm p-6 md:p-8">
                 <h2 className="text-xl font-bold text-gray-900 mb-6 border-b pb-4">Key Features</h2>
@@ -247,7 +260,6 @@ export default function ProductDetailPage() {
               </div>
             )}
             
-            {/* Tech Specs (If any) */}
             {product.technical_specs && (
               <div className="bg-white rounded-2xl shadow-sm p-6 md:p-8">
                 <h2 className="text-xl font-bold text-gray-900 mb-6 border-b pb-4">Technical Specifications</h2>
@@ -258,7 +270,6 @@ export default function ProductDetailPage() {
             )}
           </div>
 
-          {/* Sidebar Column: Specifications Table */}
           <div className="lg:col-span-1">
             <div className="bg-white rounded-2xl shadow-sm p-6 sticky top-6">
               <h2 className="text-lg font-bold text-gray-900 mb-6 border-b pb-4">Specifications</h2>
@@ -311,7 +322,6 @@ export default function ProductDetailPage() {
           </div>
         </div>
 
-        {/* Bottom Section: Reviews */}
         <div className="bg-white rounded-2xl shadow-sm p-6 md:p-8">
           <ProductReviews productId={id} />
         </div>
