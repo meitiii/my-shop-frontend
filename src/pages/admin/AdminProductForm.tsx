@@ -3,37 +3,37 @@ import { useForm } from 'react-hook-form';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../../services/api';
+import ProductImageManager from './ProductImageManager';
+import ProductVariantsManager from './ProductVariantsManager';
 
-// تایپِ فیلدهای فرم
 interface ProductFormData {
   name: string;
-    slug: string;
-    sku: string;
-    brand: string;
-    category_id: number;
-    short_description: string;
-    description: string;
-    is_active: boolean;
+  slug: string;
+  sku: string;
+  brand: string;
+  category_id: number;
+  short_description: string;
+  description: string;
+  features: string;
+  technical_specs: string;
+  weight: string;
+  dimensions: string;
+  material: string;
+  warranty: string;
+  country_of_origin: string;
+  is_active: boolean;
 }
 
 export default function AdminProductForm() {
-  const { id } = useParams(); // اگه آیدی باشه یعنی تو حالت "ویرایش" هستیم
+  const { id } = useParams();
   const isEditMode = !!id;
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  const {
-    register,
-    handleSubmit,
-    reset,
-    setValue,
-} = useForm<ProductFormData>({
-    defaultValues: {
-        is_active: true,
-    },
-});
+  const { register, handleSubmit, reset, setValue } = useForm<ProductFormData>({
+    defaultValues: { is_active: true },
+  });
 
-  // دریافت لیست دسته‌بندی‌ها برای Dropdown
   const { data: categories } = useQuery({
     queryKey: ['categories'],
     queryFn: async () => {
@@ -42,63 +42,57 @@ export default function AdminProductForm() {
     },
   });
 
-  // اگر تو حالت ویرایش هستیم، دیتای محصول رو بگیر و فرم رو پر کن
   const { isLoading: isLoadingProduct } = useQuery({
     queryKey: ['admin-product', id],
     queryFn: async () => {
       const response = await api.get(`/products/${id}/`);
       const data = response.data;
-      // پر کردن خودکار فرم
       reset({
-    name: data.name,
-    slug: data.slug,
-    sku: data.sku,
-    brand: data.brand,
-    category_id: data.category?.id || '',
-    short_description: data.short_description,
-    description: data.description,
-    is_active: data.is_active,
-});
+        name: data.name || '',
+        slug: data.slug || '',
+        sku: data.sku || '',
+        brand: data.brand || '',
+        category_id: data.category?.id || '',
+        short_description: data.short_description || '',
+        description: data.description || '',
+        features: data.features || '',
+        technical_specs: data.technical_specs || '',
+        weight: data.weight || '',
+        dimensions: data.dimensions || '',
+        material: data.material || '',
+        warranty: data.warranty || '',
+        country_of_origin: data.country_of_origin || '',
+        is_active: data.is_active ?? true,
+      });
       return data;
     },
-    enabled: isEditMode, // فقط وقتی آیدی داریم این ریکوئست رو بزن
+    enabled: isEditMode,
   });
 
-  // ذخیره محصول (چه جدید، چه ویرایش)
   const saveMutation = useMutation({
     mutationFn: async (data: ProductFormData) => {
-      if (isEditMode) {
-        return await api.patch(`/products/${id}/`, data); // آپدیت
-      } else {
-        return await api.post('/products/', data); // ایجاد جدید
-      }
+      if (isEditMode) return await api.patch(`/products/${id}/`, data);
+      return await api.post('/products/', data);
     },
     onSuccess: (response) => {
       queryClient.invalidateQueries({ queryKey: ['admin-products'] });
       alert('Product saved successfully!');
-      
-      // اگر محصول جدید ساخته شد، بفرستش به صفحه ویرایش همون محصول تا بتونه عکس و واریانت اضافه کنه
-      if (!isEditMode) {
-        navigate(`/dashboard/products/edit/${response.data.id}`);
-      }
+      if (!isEditMode) navigate(`/dashboard/products/edit/${response.data.id}`);
     },
     onError: (error: any) => {
-      console.error(error.response?.data);
-      alert('Failed to save product. Check the console.');
+      console.error("Save Error:", error.response?.data);
+      alert('Failed to save product. Check the console for details.');
     },
   });
 
   const onSubmit = (data: ProductFormData) => {
-    console.log("PRODUCT DATA:", data);
-
     saveMutation.mutate(data);
   };
 
-  // قابلیت تولید خودکار Slug از روی نام محصول
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const name = e.target.value;
     setValue('name', name);
-    if (!isEditMode) { // فقط در زمان ایجاد، اسلاگ رو اتوماتیک بساز
+    if (!isEditMode) {
       const generatedSlug = name.toLowerCase().trim().replace(/[\s\W-]+/g, '-');
       setValue('slug', generatedSlug);
     }
@@ -107,113 +101,88 @@ export default function AdminProductForm() {
   if (isEditMode && isLoadingProduct) return <div className="p-8">Loading product details...</div>;
 
   return (
-    <div className="p-8 max-w-4xl mx-auto">
+    <div className="p-4 md:p-8 max-w-5xl mx-auto mb-20">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">{isEditMode ? 'Edit Product' : 'Create New Product'}</h1>
-        <button onClick={() => navigate('/dashboard/products')} className="text-gray-500 hover:text-gray-800">
-          Back to List
+        <h1 className="text-3xl font-bold text-gray-800">
+          {isEditMode ? 'Edit Product Details' : 'Create New Product'}
+        </h1>
+        <button onClick={() => navigate('/dashboard/products')} className="text-gray-500 hover:text-gray-800 transition-colors">
+          &larr; Back to List
         </button>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="bg-white rounded-xl shadow-sm p-8 space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Product Name</label>
-            <input
-              {...register('name')}
-              onChange={handleNameChange}
-              required
-              className="w-full px-4 py-2 border rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Slug (URL)</label>
-            <input
-              {...register('slug')}
-              required
-              className="w-full px-4 py-2 border rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none bg-gray-50"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-            <select
-    {...register('category_id', { valueAsNumber: true })}
-    required
-    className="w-full px-4 py-2 border rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none"
->
-              <option value="">Select Category...</option>
-              {categories?.map((cat: any) => (
-                <option key={cat.id} value={cat.id}>{cat.name}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Brand</label>
-            <input
-              {...register('brand')}
-              className="w-full px-4 py-2 border rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">SKU (Stock Keeping Unit)</label>
-            <input
-              {...register('sku')}
-              className="w-full px-4 py-2 border rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none"
-            />
-          </div>
-
-          <div className="flex items-center mt-6">
-            <input
-              type="checkbox"
-              {...register('is_active')}
-              className="w-5 h-5 text-blue-600 rounded"
-            />
-            <label className="ml-2 font-medium text-gray-700">Active (Visible in store)</label>
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        {/* Section 1: General Info */}
+        <div className="bg-white rounded-xl shadow-sm border p-6 md:p-8">
+          <h2 className="text-xl font-semibold text-gray-800 border-b pb-3 mb-6">General Information</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Product Name *</label>
+              <input {...register('name')} onChange={handleNameChange} required className="w-full px-4 py-2 border rounded-lg focus:ring-blue-500 outline-none" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Slug (URL) *</label>
+              <input {...register('slug')} required className="w-full px-4 py-2 border rounded-lg focus:ring-blue-500 outline-none bg-gray-50" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Category *</label>
+              <select {...register('category_id', { valueAsNumber: true })} required className="w-full px-4 py-2 border rounded-lg focus:ring-blue-500 outline-none">
+                <option value="">Select Category...</option>
+                {categories?.map((cat: any) => (
+                  <option key={cat.id} value={cat.id}>{cat.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Brand</label>
+              <input {...register('brand')} className="w-full px-4 py-2 border rounded-lg focus:ring-blue-500 outline-none" placeholder="e.g. Samsung, Nike" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Base SKU</label>
+              <input {...register('sku')} className="w-full px-4 py-2 border rounded-lg focus:ring-blue-500 outline-none" />
+            </div>
+            <div className="flex items-center mt-6">
+              <input type="checkbox" {...register('is_active')} id="is_active" className="w-5 h-5 text-blue-600 rounded border-gray-300" />
+              <label htmlFor="is_active" className="ml-2 font-medium text-gray-700">Active (Visible in store)</label>
+            </div>
           </div>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Short Description</label>
-          <textarea
-            {...register('short_description')}
-            rows={2}
-            className="w-full px-4 py-2 border rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none"
-          />
+        {/* Section 2: Physical Properties */}
+        <div className="bg-white rounded-xl shadow-sm border p-6 md:p-8">
+          <h2 className="text-xl font-semibold text-gray-800 border-b pb-3 mb-6">Physical Properties & Origin</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Weight</label><input {...register('weight')} className="w-full px-4 py-2 border rounded-lg focus:ring-blue-500 outline-none" placeholder="e.g. 1.5 kg" /></div>
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Dimensions</label><input {...register('dimensions')} className="w-full px-4 py-2 border rounded-lg focus:ring-blue-500 outline-none" placeholder="e.g. 10x20x5 cm" /></div>
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Material</label><input {...register('material')} className="w-full px-4 py-2 border rounded-lg focus:ring-blue-500 outline-none" /></div>
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Country of Origin</label><input {...register('country_of_origin')} className="w-full px-4 py-2 border rounded-lg focus:ring-blue-500 outline-none" /></div>
+            <div className="md:col-span-2"><label className="block text-sm font-medium text-gray-700 mb-1">Warranty</label><input {...register('warranty')} className="w-full px-4 py-2 border rounded-lg focus:ring-blue-500 outline-none" placeholder="e.g. 18 Months Official Warranty" /></div>
+          </div>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Full Description</label>
-          <textarea
-            {...register('description')}
-            rows={5}
-            className="w-full px-4 py-2 border rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none"
-          />
+        {/* Section 3: Specs */}
+        <div className="bg-white rounded-xl shadow-sm border p-6 md:p-8">
+          <h2 className="text-xl font-semibold text-gray-800 border-b pb-3 mb-6">Descriptions & Specifications</h2>
+          <div className="space-y-6">
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Short Description</label><textarea {...register('short_description')} rows={2} className="w-full px-4 py-2 border rounded-lg focus:ring-blue-500 outline-none" /></div>
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Full Description</label><textarea {...register('description')} rows={5} className="w-full px-4 py-2 border rounded-lg focus:ring-blue-500 outline-none" /></div>
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Key Features</label><textarea {...register('features')} rows={3} className="w-full px-4 py-2 border rounded-lg focus:ring-blue-500 outline-none" placeholder="Separated by commas..." /></div>
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Technical Specifications</label><textarea {...register('technical_specs')} rows={3} className="w-full px-4 py-2 border rounded-lg focus:ring-blue-500 outline-none" /></div>
+          </div>
         </div>
 
-        <div className="pt-4 border-t flex justify-end">
-          <button
-            type="submit"
-            disabled={saveMutation.isPending}
-            className="px-8 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 disabled:bg-gray-400"
-          >
-            {saveMutation.isPending ? 'Saving...' : 'Save Product'}
+        <div className="flex justify-end pt-2">
+          <button type="submit" disabled={saveMutation.isPending} className="px-8 py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors shadow-sm">
+            {saveMutation.isPending ? 'Saving...' : 'Save Product Details'}
           </button>
         </div>
       </form>
 
-      {/* بخش تنوع‌ها و عکس‌ها فقط در حالت ویرایش نمایش داده می‌شود */}
-      {isEditMode && (
-        <div className="mt-8 p-6 bg-yellow-50 border border-yellow-200 rounded-xl">
-          <h2 className="text-xl font-bold text-gray-800 mb-2">Product Images & Variants</h2>
-          <p className="text-gray-600">
-            Product details saved. Now you can upload WebP images and add variants (sizes/colors).
-          </p>
-          {/* بعداً کامپوننت‌های این بخش رو اینجا قرار می‌دیم */}
+      {isEditMode && id && (
+        <div className="mt-12 space-y-8">
+          <hr className="border-gray-300" />
+          <ProductImageManager productId={id} />
+          <ProductVariantsManager productId={id} />
         </div>
       )}
     </div>
