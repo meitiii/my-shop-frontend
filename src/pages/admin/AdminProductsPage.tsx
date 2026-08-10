@@ -38,7 +38,7 @@ export default function AdminProductsPage() {
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold">Manage Products</h1>
         <Link 
-          to="/admin/products/new" 
+          to="/dashboard/products/new" 
           className="bg-blue-600 text-white px-4 py-2 rounded font-bold hover:bg-blue-700"
         >
           + Add New Product
@@ -77,7 +77,7 @@ export default function AdminProductsPage() {
                   </span>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
-                  <Link to={`/admin/products/edit/${product.id}`} className="text-indigo-600 hover:text-indigo-900">
+                  <Link to={`/dashboard/products/edit/${product.id}`} className="text-indigo-600 hover:text-indigo-900">
                     Edit
                   </Link>
                   <button onClick={() => handleDelete(product.id)} className="text-red-600 hover:text-red-900">

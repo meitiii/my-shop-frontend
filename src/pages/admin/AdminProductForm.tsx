@@ -1,5 +1,4 @@
 // src/pages/admin/AdminProductForm.tsx
-import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -80,7 +79,7 @@ export default function AdminProductForm() {
       
       // اگر محصول جدید ساخته شد، بفرستش به صفحه ویرایش همون محصول تا بتونه عکس و واریانت اضافه کنه
       if (!isEditMode) {
-        navigate(`/admin/products/edit/${response.data.id}`);
+        navigate(`/dashboard/products/edit/${response.data.id}`);
       }
     },
     onError: (error: any) => {
@@ -111,7 +110,7 @@ export default function AdminProductForm() {
     <div className="p-8 max-w-4xl mx-auto">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">{isEditMode ? 'Edit Product' : 'Create New Product'}</h1>
-        <button onClick={() => navigate('/admin/products')} className="text-gray-500 hover:text-gray-800">
+        <button onClick={() => navigate('/dashboard/products')} className="text-gray-500 hover:text-gray-800">
           Back to List
         </button>
       </div>

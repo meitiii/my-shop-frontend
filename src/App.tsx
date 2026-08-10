@@ -88,7 +88,7 @@ function App() {
           <Route path="/payment/verify" element={<PaymentVerifyPage />} />
           {/* Admin Routes */}
           <Route
-  path="/admin/products"
+  path="/dashboard/products"
   element={
     <AdminRoute>
       <AdminProductsPage />
@@ -96,7 +96,7 @@ function App() {
   }
 />
 <Route 
-  path="/admin/products/new" 
+  path="/dashboard/products/new" 
   element={
     <AdminRoute>
       <AdminProductForm />
@@ -104,7 +104,7 @@ function App() {
   } 
 />
 <Route 
-  path="/admin/products/edit/:id" 
+  path="/dashboard/products/edit/:id" 
   element={
     <AdminRoute>
       <AdminProductForm />
