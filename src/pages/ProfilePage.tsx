@@ -1,11 +1,65 @@
 // src/pages/ProfilePage.tsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../services/api';
 import { User, MapPin, Shield, Plus, Trash2, CheckCircle2 } from 'lucide-react';
+import axios from 'axios';
+
+// --- LEAFLET IMPORTS ---
+import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css'; // استایل‌های نقشه
+
+// رفع مشکل لود نشدن آیکون پیش‌فرض Leaflet در Vite
+import icon from 'leaflet/dist/images/marker-icon.png';
+import iconShadow from 'leaflet/dist/images/marker-shadow.png';
+const DefaultIcon = L.icon({
+  iconUrl: icon,
+  shadowUrl: iconShadow,
+  iconSize: [25, 41],
+  iconAnchor: [12, 41]
+});
+L.Marker.prototype.options.icon = DefaultIcon;
+
+// ======================================================
+// MAP SELECTOR COMPONENT (نقشه تعاملی)
+// ======================================================
+function MapSelector({ position, setPosition, onLocationChange }: any) {
+  const markerRef = useRef<any>(null);
+
+  useMapEvents({
+    click(e) {
+      setPosition(e.latlng);
+      onLocationChange(e.latlng.lat, e.latlng.lng);
+    },
+  });
+
+  const eventHandlers = useMemo(
+    () => ({
+      dragend() {
+        const marker = markerRef.current;
+        if (marker != null) {
+          const newPos = marker.getLatLng();
+          setPosition(newPos);
+          onLocationChange(newPos.lat, newPos.lng);
+        }
+      },
+    }),
+    [setPosition, onLocationChange]
+  );
+
+  return position === null ? null : (
+    <Marker
+      draggable={true}
+      eventHandlers={eventHandlers}
+      position={position}
+      ref={markerRef}
+    ></Marker>
+  );
+}
 
 // ======================================================
 // SCHEMAS
@@ -34,6 +88,8 @@ const addressSchema = z.object({
   receiver_name: z.string().optional(),
   receiver_phone: z.string().optional(),
   is_default: z.boolean().default(false),
+  lat: z.number().optional(),
+  lng: z.number().optional(),
 });
 
 // ======================================================
@@ -45,12 +101,16 @@ type AddressFormInput = z.input<typeof addressSchema>;
 type AddressFormOutput = z.output<typeof addressSchema>;
 
 // ======================================================
-// COMPONENT
+// MAIN COMPONENT
 // ======================================================
 export default function ProfilePage() {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<'info' | 'addresses' | 'security'>('info');
   const [showAddressForm, setShowAddressForm] = useState(false);
+  
+  // استیت‌های مربوط به نقشه
+  const [mapPosition, setMapPosition] = useState<any>({ lat: 35.6892, lng: 51.3890 }); // دیفالت: تهران
+  const [isGettingAddress, setIsGettingAddress] = useState(false);
 
   // --- QUERIES ---
   const { data: profile, isLoading: isProfileLoading } = useQuery({
@@ -81,16 +141,38 @@ export default function ProfilePage() {
   const addressForm = useForm<AddressFormInput, unknown, AddressFormOutput>({
     resolver: zodResolver(addressSchema),
     defaultValues: {
-      title: '',
-      state: '',
-      city: '',
-      full_address: '',
-      postal_code: '',
-      receiver_name: '',
-      receiver_phone: '',
-      is_default: false,
+      title: '', state: '', city: '', full_address: '', postal_code: '',
+      receiver_name: '', receiver_phone: '', is_default: false,
     },
   });
+
+  // --- REVERSE GEOCODING LOGIC ---
+  const handleLocationChange = async (lat: number, lng: number) => {
+    addressForm.setValue('lat', lat);
+    addressForm.setValue('lng', lng);
+    
+    try {
+      setIsGettingAddress(true);
+      const response = await axios.get(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`
+      );
+      
+      const { address } = response.data;
+      if (address) {
+        if (address.city || address.town || address.county) {
+          addressForm.setValue('city', address.city || address.town || address.county || '');
+        }
+        if (address.state) {
+          addressForm.setValue('state', address.state || '');
+        }
+        addressForm.setValue('full_address', response.data.display_name || '');
+      }
+    } catch (error) {
+      console.error("Geocoding failed", error);
+    } finally {
+      setIsGettingAddress(false);
+    }
+  };
 
   // --- PROFILE RESET ---
   useEffect(() => {
@@ -279,13 +361,37 @@ export default function ProfilePage() {
                 {showAddressForm ? (
                   <div className="bg-gray-50 p-6 rounded-xl border border-gray-200 mb-6">
                     <h3 className="font-bold text-gray-800 mb-4">Add a new delivery address</h3>
+                    
+                    {/* نقشه اینجاست */}
+                    <div className="mb-6 relative z-0 border-2 border-gray-200 rounded-xl overflow-hidden h-64 shadow-sm">
+                      <MapContainer 
+                        center={[35.6892, 51.3890]} 
+                        zoom={13} 
+                        scrollWheelZoom={true} 
+                        style={{ height: '100%', width: '100%' }}
+                      >
+                        <TileLayer
+                          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                          attribution='&copy; OpenStreetMap contributors'
+                        />
+                        <MapSelector 
+                          position={mapPosition} 
+                          setPosition={setMapPosition} 
+                          onLocationChange={handleLocationChange} 
+                        />
+                      </MapContainer>
+                      <div className="absolute top-2 right-2 z-[1000] bg-white/90 backdrop-blur px-3 py-1.5 rounded-lg shadow-sm text-xs font-bold text-blue-600 border border-blue-100">
+                        Click or drag the pin to set location
+                      </div>
+                    </div>
+
                     <form onSubmit={addressForm.handleSubmit((data) => addAddressMutation.mutate(data))} className="space-y-4">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                           <label className="block text-xs text-gray-600 mb-1">Title (e.g. Home, Office)</label>
                           <input
                             {...addressForm.register('title')}
-                            className="w-full px-3 py-2 border rounded-md outline-none focus:ring-1 focus:ring-blue-500"
+                            className="w-full px-3 py-2 border rounded-md outline-none focus:ring-1 focus:ring-blue-500 bg-white"
                           />
                           {addressForm.formState.errors.title && (
                             <p className="text-red-500 text-xs mt-1">{addressForm.formState.errors.title.message}</p>
@@ -295,21 +401,21 @@ export default function ProfilePage() {
                           <label className="block text-xs text-gray-600 mb-1">Receiver Name</label>
                           <input
                             {...addressForm.register('receiver_name')}
-                            className="w-full px-3 py-2 border rounded-md outline-none focus:ring-1 focus:ring-blue-500"
+                            className="w-full px-3 py-2 border rounded-md outline-none focus:ring-1 focus:ring-blue-500 bg-white"
                           />
                         </div>
                         <div>
                           <label className="block text-xs text-gray-600 mb-1">State</label>
                           <input
                             {...addressForm.register('state')}
-                            className="w-full px-3 py-2 border rounded-md outline-none focus:ring-1 focus:ring-blue-500"
+                            className="w-full px-3 py-2 border rounded-md outline-none focus:ring-1 focus:ring-blue-500 bg-white"
                           />
                         </div>
                         <div>
                           <label className="block text-xs text-gray-600 mb-1">City</label>
                           <input
                             {...addressForm.register('city')}
-                            className="w-full px-3 py-2 border rounded-md outline-none focus:ring-1 focus:ring-blue-500"
+                            className="w-full px-3 py-2 border rounded-md outline-none focus:ring-1 focus:ring-blue-500 bg-white"
                           />
                           {addressForm.formState.errors.city && (
                             <p className="text-red-500 text-xs mt-1">{addressForm.formState.errors.city.message}</p>
@@ -319,7 +425,7 @@ export default function ProfilePage() {
                           <label className="block text-xs text-gray-600 mb-1">Postal Code</label>
                           <input
                             {...addressForm.register('postal_code')}
-                            className="w-full px-3 py-2 border rounded-md outline-none focus:ring-1 focus:ring-blue-500"
+                            className="w-full px-3 py-2 border rounded-md outline-none focus:ring-1 focus:ring-blue-500 bg-white"
                           />
                           {addressForm.formState.errors.postal_code && (
                             <p className="text-red-500 text-xs mt-1">{addressForm.formState.errors.postal_code.message}</p>
@@ -329,20 +435,26 @@ export default function ProfilePage() {
                           <label className="block text-xs text-gray-600 mb-1">Receiver Phone</label>
                           <input
                             {...addressForm.register('receiver_phone')}
-                            className="w-full px-3 py-2 border rounded-md outline-none focus:ring-1 focus:ring-blue-500"
+                            className="w-full px-3 py-2 border rounded-md outline-none focus:ring-1 focus:ring-blue-500 bg-white"
                           />
                         </div>
+                        
                         <div className="md:col-span-2">
-                          <label className="block text-xs text-gray-600 mb-1">Full Address</label>
+                          <label className="block text-xs text-gray-600 mb-1 flex justify-between items-center">
+                            <span>Full Address</span>
+                            {isGettingAddress && <span className="text-blue-500 font-medium animate-pulse">Detecting address...</span>}
+                          </label>
                           <textarea
                             {...addressForm.register('full_address')}
-                            rows={2}
-                            className="w-full px-3 py-2 border rounded-md outline-none focus:ring-1 focus:ring-blue-500"
+                            rows={3}
+                            className="w-full px-3 py-2 border rounded-md outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+                            placeholder="Move the pin on the map to auto-fill, then add your unit number."
                           />
                           {addressForm.formState.errors.full_address && (
                             <p className="text-red-500 text-xs mt-1">{addressForm.formState.errors.full_address.message}</p>
                           )}
                         </div>
+                        
                         <div className="md:col-span-2 flex items-center">
                           <input
                             type="checkbox"
@@ -350,26 +462,27 @@ export default function ProfilePage() {
                             id="is_default"
                             className="w-4 h-4 text-blue-600 rounded"
                           />
-                          <label htmlFor="is_default" className="ml-2 text-sm text-gray-700 font-medium">
+                          <label htmlFor="is_default" className="ml-2 text-sm text-gray-700 font-medium cursor-pointer">
                             Set as default address
                           </label>
                         </div>
                       </div>
-                      <div className="flex justify-end gap-2 pt-2">
+                      
+                      <div className="flex justify-end gap-2 pt-2 border-t mt-4">
                         <button
                           type="button"
                           onClick={() => {
                             setShowAddressForm(false);
                             addressForm.reset();
                           }}
-                          className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-200 rounded-lg"
+                          className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-200 rounded-lg font-medium transition-colors"
                         >
                           Cancel
                         </button>
                         <button
                           type="submit"
-                          disabled={addAddressMutation.isPending}
-                          className="px-4 py-2 text-sm bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 disabled:bg-gray-400"
+                          disabled={addAddressMutation.isPending || isGettingAddress}
+                          className="px-6 py-2 text-sm bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 disabled:bg-gray-400 transition-colors shadow-sm"
                         >
                           {addAddressMutation.isPending ? 'Saving...' : 'Save Address'}
                         </button>
@@ -464,7 +577,7 @@ export default function ProfilePage() {
                     <button
                       type="submit"
                       disabled={updatePasswordMutation.isPending}
-                      className="w-full py-2.5 bg-gray-900 text-white font-bold rounded-lg hover:bg-black disabled:bg-gray-400 transition-colors"
+                      className="w-full py-2.5 bg-gray-900 text-white font-bold rounded-lg hover:bg-black disabled:bg-gray-400 transition-colors shadow-sm"
                     >
                       {updatePasswordMutation.isPending ? 'Updating...' : 'Update Password'}
                     </button>
