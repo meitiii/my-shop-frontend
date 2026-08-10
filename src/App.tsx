@@ -1,4 +1,6 @@
 
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 import ProfilePage from './pages/ProfilePage';
 import HomePage from './pages/HomePage';
 import ProductDetailPage from './pages/ProductDetailPage';
@@ -7,6 +9,7 @@ import OrdersPage from './pages/OrdersPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import PaymentVerifyPage from './pages/PaymentVerifyPage';
+
 
 import AdminProductsPage from './pages/admin/AdminProductsPage';
 import AdminProductForm from './pages/admin/AdminProductForm';
@@ -111,6 +114,8 @@ function App() {
     </AdminRoute>
   } 
 />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password/:uid/:token" element={<ResetPasswordPage />} />  
           <Route path="*" element={<div className="p-8 text-center text-red-500">Page Not Found (404)</div>} />
         </Routes>
       </main>

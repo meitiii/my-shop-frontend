@@ -89,8 +89,15 @@ function LoginPage() {
               placeholder="••••••••"
             />
             {errors.password && <p className="text-red-500 text-sm mt-1">{errors.password.message}</p>}
+            
+            {/* این قسمت اضافه شد */}
+            <div className="flex justify-end mt-2">
+              <Link to="/forgot-password" className="text-sm text-blue-600 hover:underline font-medium">
+                Forgot your password?
+              </Link>
+            </div>
           </div>
-
+              
           <button
             type="submit"
             disabled={loginMutation.isPending}

@@ -1,131 +1,480 @@
 // src/pages/ProfilePage.tsx
-import { useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../services/api';
+import { User, MapPin, Shield, Plus, Trash2, CheckCircle2 } from 'lucide-react';
 
-// ۱. تعریف اسکیما برای اعتبارسنجی
+// ======================================================
+// SCHEMAS
+// ======================================================
 const profileSchema = z.object({
-  first_name: z.string().min(1, "First name is required"),
-  last_name: z.string().min(1, "Last name is required"),
-  // معمولا یوزرنیم و ایمیل رو تو پروفایل فقط‌خواندنی (Read-only) میذارن یا مسیر جدا دارن، ولی اگر بک‌اندت اجازه میده میتونی اینجا بذاری
+  first_name: z.string().min(1, 'First name is required'),
+  last_name: z.string().min(1, 'Last name is required'),
+  phone_number: z.string().optional(),
 });
 
+const passwordSchema = z.object({
+  old_password: z.string().min(1, 'Current password is required'),
+  new_password: z.string().min(8, 'Password must be at least 8 characters'),
+  new_password_confirm: z.string(),
+}).refine((data) => data.new_password === data.new_password_confirm, {
+  message: 'Passwords do not match',
+  path: ['new_password_confirm'],
+});
+
+const addressSchema = z.object({
+  title: z.string().min(1, 'Title is required (e.g., Home, Work)'),
+  state: z.string().optional(),
+  city: z.string().min(1, 'City is required'),
+  full_address: z.string().min(5, 'Full address is required'),
+  postal_code: z.string().min(1, 'Postal code is required'),
+  receiver_name: z.string().optional(),
+  receiver_phone: z.string().optional(),
+  is_default: z.boolean().default(false),
+});
+
+// ======================================================
+// TYPES
+// ======================================================
 type ProfileFormData = z.infer<typeof profileSchema>;
+type PasswordFormData = z.infer<typeof passwordSchema>;
+type AddressFormInput = z.input<typeof addressSchema>;
+type AddressFormOutput = z.output<typeof addressSchema>;
 
-// توابع ارتباط با بک‌اند
-const fetchProfile = async () => {
-  const response = await api.get('/users/profile/');
-  return response.data;
-};
-
-const updateProfile = async (data: ProfileFormData) => {
-  const response = await api.patch('/users/profile/', data); // از PATCH استفاده میکنیم تا فقط فیلدهای تغییر یافته آپدیت بشن
-  return response.data;
-};
-
-function ProfilePage() {
+// ======================================================
+// COMPONENT
+// ======================================================
+export default function ProfilePage() {
   const queryClient = useQueryClient();
+  const [activeTab, setActiveTab] = useState<'info' | 'addresses' | 'security'>('info');
+  const [showAddressForm, setShowAddressForm] = useState(false);
 
-  // ۲. گرفتن اطلاعات پروفایل
-  const { data: profile, isLoading, isError } = useQuery({
+  // --- QUERIES ---
+  const { data: profile, isLoading: isProfileLoading } = useQuery({
     queryKey: ['profile'],
-    queryFn: fetchProfile,
+    queryFn: async () => {
+      const response = await api.get('/users/profile/');
+      return response.data;
+    },
   });
 
-  // ۳. تنظیمات فرم
-  const {
-    register,
-    handleSubmit,
-    reset,
-    formState: { errors, isDirty }, // isDirty یعنی آیا کاربر چیزی رو تغییر داده یا نه
-  } = useForm<ProfileFormData>({
+  const { data: addresses, isLoading: isAddressesLoading } = useQuery({
+    queryKey: ['addresses'],
+    queryFn: async () => {
+      const response = await api.get('/users/addresses/');
+      return response.data.results || response.data;
+    },
+  });
+
+  // --- FORMS ---
+  const profileForm = useForm<ProfileFormData>({
     resolver: zodResolver(profileSchema),
   });
 
-  // پر کردن فرم به محض اینکه دیتای پروفایل از سرور رسید
-  useEffect(() => {
-    if (profile) {
-      reset({
-        first_name: profile.first_name || '',
-        last_name: profile.last_name || '',
-      });
-    }
-  }, [profile, reset]);
-
-  // ۴. ارسال تغییرات به سرور
-  const updateMutation = useMutation({
-    mutationFn: updateProfile,
-    onSuccess: () => {
-      alert("Profile updated successfully!");
-      // رفرش کردن دیتای پروفایل تو کش ریکت‌کوئری
-      queryClient.invalidateQueries({ queryKey: ['profile'] });
-    },
-    onError: () => {
-      alert("Failed to update profile. Please try again.");
-    }
+  const passwordForm = useForm<PasswordFormData>({
+    resolver: zodResolver(passwordSchema),
   });
 
-  const onSubmit = (data: ProfileFormData) => {
-    updateMutation.mutate(data);
-  };
+  const addressForm = useForm<AddressFormInput, unknown, AddressFormOutput>({
+    resolver: zodResolver(addressSchema),
+    defaultValues: {
+      title: '',
+      state: '',
+      city: '',
+      full_address: '',
+      postal_code: '',
+      receiver_name: '',
+      receiver_phone: '',
+      is_default: false,
+    },
+  });
 
-  if (isLoading) return <div className="p-8 text-center text-xl">Loading profile... ⏳</div>;
-  if (isError) return <div className="p-8 text-center text-red-500">Failed to load profile. Please login.</div>;
+  // --- PROFILE RESET ---
+  useEffect(() => {
+    if (profile) {
+      profileForm.reset({
+        first_name: profile.first_name || '',
+        last_name: profile.last_name || '',
+        phone_number: profile.phone_number || '',
+      });
+    }
+  }, [profile, profileForm]);
 
+  // --- MUTATIONS ---
+  const updateProfileMutation = useMutation({
+    mutationFn: async (data: ProfileFormData) => {
+      const response = await api.patch('/users/profile/', data);
+      return response.data;
+    },
+    onSuccess: () => {
+      alert('Profile updated successfully!');
+      queryClient.invalidateQueries({ queryKey: ['profile'] });
+    },
+    onError: () => alert('Failed to update profile.'),
+  });
+
+  const updatePasswordMutation = useMutation({
+    mutationFn: async (data: PasswordFormData) => {
+      const response = await api.post('/users/change-password/', data);
+      return response.data;
+    },
+    onSuccess: () => {
+      alert('Password changed successfully!');
+      passwordForm.reset();
+    },
+    onError: (error: any) => {
+      alert(error.response?.data?.old_password?.[0] || 'Failed to change password.');
+    },
+  });
+
+  const addAddressMutation = useMutation({
+    mutationFn: async (data: AddressFormOutput) => {
+      const response = await api.post('/users/addresses/', data);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['addresses'] });
+      setShowAddressForm(false);
+      addressForm.reset();
+    },
+    onError: (error: any) => {
+      console.error('Add Address Error:', error.response?.data);
+      alert('Failed to add address.');
+    },
+  });
+
+  const deleteAddressMutation = useMutation({
+    mutationFn: async (id: number) => {
+      return await api.delete(`/users/addresses/${id}/`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['addresses'] });
+    },
+  });
+
+  // --- LOADING ---
+  if (isProfileLoading) {
+    return <div className="p-8 text-center text-gray-500">Loading your profile...</div>;
+  }
+
+  // --- RENDER ---
   return (
-    <div className="p-8 bg-gray-50 min-h-[80vh]">
-      <div className="max-w-2xl mx-auto bg-white rounded-xl shadow-sm p-8">
-        <h1 className="text-3xl font-bold text-gray-800 mb-8 border-b pb-4">My Profile</h1>
+    <div className="bg-gray-50 min-h-[85vh] py-10">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+        <h1 className="text-3xl font-extrabold text-gray-900 mb-8">My Account</h1>
 
-        <div className="mb-8 p-4 bg-blue-50 rounded-lg">
-          <p className="text-sm text-gray-600 mb-1">Account details</p>
-          <p className="font-semibold text-gray-800">Email: {profile?.email}</p>
-          <p className="font-semibold text-gray-800">Username: {profile?.username}</p>
+        <div className="flex flex-col md:flex-row gap-8">
+          {/* SIDEBAR */}
+          <div className="w-full md:w-64 flex-shrink-0">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+              <nav className="flex flex-col">
+                <button
+                  onClick={() => setActiveTab('info')}
+                  className={`flex items-center gap-3 px-6 py-4 text-sm font-semibold transition-colors border-l-4 ${
+                    activeTab === 'info' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-transparent text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  <User size={18} /> Personal Info
+                </button>
+                <button
+                  onClick={() => setActiveTab('addresses')}
+                  className={`flex items-center gap-3 px-6 py-4 text-sm font-semibold transition-colors border-l-4 ${
+                    activeTab === 'addresses' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-transparent text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  <MapPin size={18} /> My Addresses
+                </button>
+                <button
+                  onClick={() => setActiveTab('security')}
+                  className={`flex items-center gap-3 px-6 py-4 text-sm font-semibold transition-colors border-l-4 ${
+                    activeTab === 'security' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-transparent text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  <Shield size={18} /> Security & Password
+                </button>
+              </nav>
+            </div>
+          </div>
+
+          {/* MAIN CONTENT */}
+          <div className="flex-1 bg-white rounded-2xl shadow-sm border border-gray-100 p-6 md:p-8">
+            
+            {/* TAB 1 - PERSONAL INFO */}
+            {activeTab === 'info' && (
+              <div>
+                <h2 className="text-xl font-bold text-gray-900 mb-6 border-b pb-4">Personal Information</h2>
+                <div className="mb-8 flex bg-gray-50 rounded-xl p-4 border border-gray-100">
+                  <div className="flex-1">
+                    <p className="text-xs text-gray-500 uppercase font-semibold">Email Address</p>
+                    <p className="font-bold text-gray-900 mt-1">{profile?.email}</p>
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-xs text-gray-500 uppercase font-semibold">Username</p>
+                    <p className="font-bold text-gray-900 mt-1">{profile?.username}</p>
+                  </div>
+                </div>
+
+                <form onSubmit={profileForm.handleSubmit((data) => updateProfileMutation.mutate(data))} className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
+                      <input
+                        {...profileForm.register('first_name')}
+                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                      />
+                      {profileForm.formState.errors.first_name && (
+                        <p className="text-red-500 text-xs mt-1">{profileForm.formState.errors.first_name.message}</p>
+                      )}
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
+                      <input
+                        {...profileForm.register('last_name')}
+                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                      />
+                      {profileForm.formState.errors.last_name && (
+                        <p className="text-red-500 text-xs mt-1">{profileForm.formState.errors.last_name.message}</p>
+                      )}
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+                      <input
+                        {...profileForm.register('phone_number')}
+                        placeholder="e.g. 09123456789"
+                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex justify-end pt-4">
+                    <button
+                      type="submit"
+                      disabled={!profileForm.formState.isDirty || updateProfileMutation.isPending}
+                      className="px-6 py-2.5 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 disabled:bg-gray-300 transition-colors"
+                    >
+                      {updateProfileMutation.isPending ? 'Saving...' : 'Save Changes'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            {/* TAB 2 - ADDRESSES */}
+            {activeTab === 'addresses' && (
+              <div>
+                <div className="flex justify-between items-center mb-6 border-b pb-4">
+                  <h2 className="text-xl font-bold text-gray-900">Saved Addresses</h2>
+                  {!showAddressForm && (
+                    <button
+                      onClick={() => setShowAddressForm(true)}
+                      className="flex items-center gap-1 text-sm bg-blue-50 text-blue-700 px-3 py-1.5 rounded-lg font-semibold hover:bg-blue-100 transition-colors"
+                    >
+                      <Plus size={16} /> Add New
+                    </button>
+                  )}
+                </div>
+
+                {showAddressForm ? (
+                  <div className="bg-gray-50 p-6 rounded-xl border border-gray-200 mb-6">
+                    <h3 className="font-bold text-gray-800 mb-4">Add a new delivery address</h3>
+                    <form onSubmit={addressForm.handleSubmit((data) => addAddressMutation.mutate(data))} className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs text-gray-600 mb-1">Title (e.g. Home, Office)</label>
+                          <input
+                            {...addressForm.register('title')}
+                            className="w-full px-3 py-2 border rounded-md outline-none focus:ring-1 focus:ring-blue-500"
+                          />
+                          {addressForm.formState.errors.title && (
+                            <p className="text-red-500 text-xs mt-1">{addressForm.formState.errors.title.message}</p>
+                          )}
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-600 mb-1">Receiver Name</label>
+                          <input
+                            {...addressForm.register('receiver_name')}
+                            className="w-full px-3 py-2 border rounded-md outline-none focus:ring-1 focus:ring-blue-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-600 mb-1">State</label>
+                          <input
+                            {...addressForm.register('state')}
+                            className="w-full px-3 py-2 border rounded-md outline-none focus:ring-1 focus:ring-blue-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-600 mb-1">City</label>
+                          <input
+                            {...addressForm.register('city')}
+                            className="w-full px-3 py-2 border rounded-md outline-none focus:ring-1 focus:ring-blue-500"
+                          />
+                          {addressForm.formState.errors.city && (
+                            <p className="text-red-500 text-xs mt-1">{addressForm.formState.errors.city.message}</p>
+                          )}
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-600 mb-1">Postal Code</label>
+                          <input
+                            {...addressForm.register('postal_code')}
+                            className="w-full px-3 py-2 border rounded-md outline-none focus:ring-1 focus:ring-blue-500"
+                          />
+                          {addressForm.formState.errors.postal_code && (
+                            <p className="text-red-500 text-xs mt-1">{addressForm.formState.errors.postal_code.message}</p>
+                          )}
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-600 mb-1">Receiver Phone</label>
+                          <input
+                            {...addressForm.register('receiver_phone')}
+                            className="w-full px-3 py-2 border rounded-md outline-none focus:ring-1 focus:ring-blue-500"
+                          />
+                        </div>
+                        <div className="md:col-span-2">
+                          <label className="block text-xs text-gray-600 mb-1">Full Address</label>
+                          <textarea
+                            {...addressForm.register('full_address')}
+                            rows={2}
+                            className="w-full px-3 py-2 border rounded-md outline-none focus:ring-1 focus:ring-blue-500"
+                          />
+                          {addressForm.formState.errors.full_address && (
+                            <p className="text-red-500 text-xs mt-1">{addressForm.formState.errors.full_address.message}</p>
+                          )}
+                        </div>
+                        <div className="md:col-span-2 flex items-center">
+                          <input
+                            type="checkbox"
+                            {...addressForm.register('is_default')}
+                            id="is_default"
+                            className="w-4 h-4 text-blue-600 rounded"
+                          />
+                          <label htmlFor="is_default" className="ml-2 text-sm text-gray-700 font-medium">
+                            Set as default address
+                          </label>
+                        </div>
+                      </div>
+                      <div className="flex justify-end gap-2 pt-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowAddressForm(false);
+                            addressForm.reset();
+                          }}
+                          className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-200 rounded-lg"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={addAddressMutation.isPending}
+                          className="px-4 py-2 text-sm bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 disabled:bg-gray-400"
+                        >
+                          {addAddressMutation.isPending ? 'Saving...' : 'Save Address'}
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {isAddressesLoading ? (
+                      <p className="text-sm text-gray-500">Loading addresses...</p>
+                    ) : addresses && addresses.length > 0 ? (
+                      addresses.map((address: any) => (
+                        <div
+                          key={address.id}
+                          className={`relative p-5 rounded-xl border-2 transition-all ${
+                            address.is_default ? 'border-blue-500 bg-blue-50/30' : 'border-gray-200 bg-white hover:border-gray-300'
+                          }`}
+                        >
+                          {address.is_default && (
+                            <span className="absolute top-4 right-4 flex items-center gap-1 text-xs font-bold text-blue-700 bg-blue-100 px-2 py-1 rounded">
+                              <CheckCircle2 size={12} /> Default
+                            </span>
+                          )}
+                          <div className="flex items-center gap-2 mb-3">
+                            <MapPin size={18} className={address.is_default ? 'text-blue-600' : 'text-gray-400'} />
+                            <h3 className="font-bold text-gray-900">{address.title}</h3>
+                          </div>
+                          <p className="text-sm text-gray-600 mb-1">{address.full_address}</p>
+                          <p className="text-xs text-gray-500 mb-4">{address.city} • Postal Code: {address.postal_code}</p>
+                          <button
+                            onClick={() => {
+                              if (window.confirm('Delete this address?')) {
+                                deleteAddressMutation.mutate(address.id);
+                              }
+                            }}
+                            className="text-red-500 hover:text-red-700 flex items-center gap-1 text-sm font-medium"
+                          >
+                            <Trash2 size={14} /> Remove
+                          </button>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="col-span-2 text-center py-10 bg-gray-50 rounded-xl border border-dashed border-gray-300">
+                        <MapPin size={32} className="mx-auto text-gray-400 mb-2" />
+                        <p className="text-gray-500">No addresses saved yet.</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* TAB 3 - SECURITY */}
+            {activeTab === 'security' && (
+              <div>
+                <h2 className="text-xl font-bold text-gray-900 mb-6 border-b pb-4">Change Password</h2>
+                <form onSubmit={passwordForm.handleSubmit((data) => updatePasswordMutation.mutate(data))} className="space-y-5 max-w-md">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Current Password</label>
+                    <input
+                      type="password"
+                      {...passwordForm.register('old_password')}
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                    />
+                    {passwordForm.formState.errors.old_password && (
+                      <p className="text-red-500 text-xs mt-1">{passwordForm.formState.errors.old_password.message}</p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
+                    <input
+                      type="password"
+                      {...passwordForm.register('new_password')}
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                    />
+                    {passwordForm.formState.errors.new_password && (
+                      <p className="text-red-500 text-xs mt-1">{passwordForm.formState.errors.new_password.message}</p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Confirm New Password</label>
+                    <input
+                      type="password"
+                      {...passwordForm.register('new_password_confirm')}
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                    />
+                    {passwordForm.formState.errors.new_password_confirm && (
+                      <p className="text-red-500 text-xs mt-1">{passwordForm.formState.errors.new_password_confirm.message}</p>
+                    )}
+                  </div>
+                  <div className="pt-2">
+                    <button
+                      type="submit"
+                      disabled={updatePasswordMutation.isPending}
+                      className="w-full py-2.5 bg-gray-900 text-white font-bold rounded-lg hover:bg-black disabled:bg-gray-400 transition-colors"
+                    >
+                      {updatePasswordMutation.isPending ? 'Updating...' : 'Update Password'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+          </div>
         </div>
-
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
-              <input
-                {...register('first_name')}
-                type="text"
-                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:outline-none transition-colors ${
-                  errors.first_name ? 'border-red-500 focus:ring-red-200' : 'border-gray-300 focus:ring-blue-200'
-                }`}
-              />
-              {errors.first_name && <p className="text-red-500 text-sm mt-1">{errors.first_name.message}</p>}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
-              <input
-                {...register('last_name')}
-                type="text"
-                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:outline-none transition-colors ${
-                  errors.last_name ? 'border-red-500 focus:ring-red-200' : 'border-gray-300 focus:ring-blue-200'
-                }`}
-              />
-              {errors.last_name && <p className="text-red-500 text-sm mt-1">{errors.last_name.message}</p>}
-            </div>
-          </div>
-
-          <div className="flex justify-end pt-4 border-t">
-            <button
-              type="submit"
-              disabled={!isDirty || updateMutation.isPending} // دکمه فقط وقتی فعاله که فرم تغییر کرده باشه
-              className="px-6 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-400"
-            >
-              {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
-            </button>
-          </div>
-        </form>
       </div>
     </div>
   );
 }
-
-export default ProfilePage;
