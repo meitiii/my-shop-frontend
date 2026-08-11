@@ -1,4 +1,5 @@
-
+import AdminBrandsPage from './pages/admin/AdminBrandsPage';
+import AdminCategoriesPage from './pages/admin/AdminCategoriesPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import ProfilePage from './pages/ProfilePage';
@@ -114,6 +115,9 @@ function App() {
     </AdminRoute>
   } 
 />
+{/* */}
+          <Route path="/dashboard/brands" element={<AdminRoute><AdminBrandsPage /></AdminRoute>} />
+          <Route path="/dashboard/categories" element={<AdminRoute><AdminCategoriesPage /></AdminRoute>} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password/:uid/:token" element={<ResetPasswordPage />} />  
           <Route path="*" element={<div className="p-8 text-center text-red-500">Page Not Found (404)</div>} />

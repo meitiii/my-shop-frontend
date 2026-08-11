@@ -20,7 +20,6 @@ interface ProductImage {
   alt_text: string | null;
   is_main: boolean;
 }
-
 interface ProductDetailData {
   id: number;
   name: string;
@@ -28,7 +27,8 @@ interface ProductDetailData {
   description: string;
   features: string;
   technical_specs: string;
-  brand: string;
+  brand: number | null;
+  brand_name: string | null;
   weight: string;
   dimensions: string;
   material: string;
@@ -160,7 +160,7 @@ export default function ProductDetailPage() {
               <h1 className="text-3xl font-bold text-gray-900 mb-2 leading-tight">{product.name}</h1>
               
               <div className="flex items-center gap-4 mb-6">
-                <p className="text-sm text-gray-500 font-medium">Brand: <span className="text-gray-800">{product.brand || 'N/A'}</span></p>
+                <p className="text-sm text-gray-500 font-medium">Brand: <span className="text-gray-800">{product.brand_name || 'N/A'}</span></p>
                 <div className="flex items-center text-sm">
                   <span className="text-yellow-400 text-lg mr-1">★</span>
                   <span className="font-bold text-gray-800">
@@ -275,12 +275,14 @@ export default function ProductDetailPage() {
               <h2 className="text-lg font-bold text-gray-900 mb-6 border-b pb-4">Specifications</h2>
               <div className="space-y-4 text-sm">
                 
-                {product.brand && (
-                  <div className="flex justify-between border-b border-gray-50 pb-3">
-                    <span className="text-gray-500">Brand</span>
-                    <span className="font-semibold text-gray-900">{product.brand}</span>
-                  </div>
-                )}
+                {product.brand_name && (
+  <div className="flex justify-between border-b border-gray-50 pb-3">
+    <span className="text-gray-500">Brand</span>
+    <span className="font-semibold text-gray-900">
+      {product.brand_name}
+    </span>
+  </div>
+)}
                 
                 {product.weight && (
                   <div className="flex justify-between border-b border-gray-50 pb-3">
