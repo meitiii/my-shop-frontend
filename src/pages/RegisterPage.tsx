@@ -5,8 +5,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation } from '@tanstack/react-query';
 import { api } from '../services/api';
 import { useNavigate, Link } from 'react-router-dom';
+import { UserPlus } from 'lucide-react';
 
-// ۱. به‌روزرسانی اسکیما: افزودن فیلدهای جدید و تغییر طول پسورد به حداقل ۸
 const registerSchema = z.object({
   username: z.string().min(3, "Username must be at least 3 characters"),
   first_name: z.string().min(1, "First name is required"),
@@ -21,18 +21,13 @@ const registerSchema = z.object({
 
 type RegisterFormData = z.infer<typeof registerSchema>;
 
-function RegisterPage() {
+export default function RegisterPage() {
   const navigate = useNavigate();
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<RegisterFormData>({
+  const { register, handleSubmit, formState: { errors } } = useForm<RegisterFormData>({
     resolver: zodResolver(registerSchema),
   });
 
-  // ۲. ارسال تمام اطلاعات لازم به بک‌اند
   const registerMutation = useMutation({
     mutationFn: async (data: RegisterFormData) => {
       const payload = {
@@ -42,7 +37,6 @@ function RegisterPage() {
         email: data.email,
         password: data.password,
       };
-      // آدرس API ثبت‌نام خودت رو جایگزین کن (مثلاً /users/register/ یا /api/register/)
       const response = await api.post('/users/register/', payload);
       return response.data;
     },
@@ -51,7 +45,6 @@ function RegisterPage() {
       navigate('/login');
     },
     onError: (error: any) => {
-      // استخراج خطاهای ممکن از سمت serializers بک‌اند
       const responseData = error.response?.data;
       const errorMessage = responseData?.username?.[0] ||
                            responseData?.email?.[0] ||
@@ -68,17 +61,21 @@ function RegisterPage() {
 
   return (
     <div className="min-h-[85vh] flex items-center justify-center bg-gray-50 p-4 my-6">
-      <div className="max-w-md w-full bg-white rounded-xl shadow-lg p-8">
-        <h2 className="text-3xl font-bold text-center text-gray-800 mb-8">Create an Account</h2>
+      <div className="max-w-md w-full bg-white rounded-2xl shadow-lg p-8 border border-gray-100">
         
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          {/* فیلد Username */}
+        <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mb-6 mx-auto">
+          <UserPlus size={24} />
+        </div>
+
+        <h2 className="text-3xl font-bold text-center text-gray-900 mb-8">Create an Account</h2>
+        
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Username</label>
             <input
               {...register('username')}
               type="text"
-              className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:outline-none transition-colors ${
+              className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:outline-none transition-colors outline-none ${
                 errors.username ? 'border-red-500 focus:ring-red-200' : 'border-gray-300 focus:ring-blue-200'
               }`}
               placeholder="johndoe"
@@ -86,14 +83,13 @@ function RegisterPage() {
             {errors.username && <p className="text-red-500 text-sm mt-1">{errors.username.message}</p>}
           </div>
 
-          {/* فیلدهای First Name و Last Name در یک ردیف */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
               <input
                 {...register('first_name')}
                 type="text"
-                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:outline-none transition-colors ${
+                className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:outline-none transition-colors outline-none ${
                   errors.first_name ? 'border-red-500 focus:ring-red-200' : 'border-gray-300 focus:ring-blue-200'
                 }`}
                 placeholder="John"
@@ -106,7 +102,7 @@ function RegisterPage() {
               <input
                 {...register('last_name')}
                 type="text"
-                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:outline-none transition-colors ${
+                className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:outline-none transition-colors outline-none ${
                   errors.last_name ? 'border-red-500 focus:ring-red-200' : 'border-gray-300 focus:ring-blue-200'
                 }`}
                 placeholder="Doe"
@@ -115,13 +111,12 @@ function RegisterPage() {
             </div>
           </div>
 
-          {/* فیلد Email */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
             <input
               {...register('email')}
               type="email"
-              className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:outline-none transition-colors ${
+              className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:outline-none transition-colors outline-none ${
                 errors.email ? 'border-red-500 focus:ring-red-200' : 'border-gray-300 focus:ring-blue-200'
               }`}
               placeholder="you@example.com"
@@ -129,13 +124,12 @@ function RegisterPage() {
             {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email.message}</p>}
           </div>
 
-          {/* فیلد Password */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
             <input
               {...register('password')}
               type="password"
-              className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:outline-none transition-colors ${
+              className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:outline-none transition-colors outline-none ${
                 errors.password ? 'border-red-500 focus:ring-red-200' : 'border-gray-300 focus:ring-blue-200'
               }`}
               placeholder="Min 8 characters"
@@ -143,13 +137,12 @@ function RegisterPage() {
             {errors.password && <p className="text-red-500 text-sm mt-1">{errors.password.message}</p>}
           </div>
 
-          {/* فیلد Confirm Password */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
             <input
               {...register('confirmPassword')}
               type="password"
-              className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:outline-none transition-colors ${
+              className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:outline-none transition-colors outline-none ${
                 errors.confirmPassword ? 'border-red-500 focus:ring-red-200' : 'border-gray-300 focus:ring-blue-200'
               }`}
               placeholder="Repeat your password"
@@ -160,15 +153,15 @@ function RegisterPage() {
           <button
             type="submit"
             disabled={registerMutation.isPending}
-            className="w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 transition-colors disabled:bg-blue-400 mt-2"
+            className="w-full bg-blue-600 text-white font-bold py-3.5 rounded-lg hover:bg-blue-700 transition-colors disabled:bg-blue-400 mt-4 shadow-sm"
           >
             {registerMutation.isPending ? 'Creating account...' : 'Sign Up'}
           </button>
         </form>
 
-        <p className="mt-6 text-center text-sm text-gray-600">
+        <p className="mt-8 text-center text-sm text-gray-600">
           Already have an account?{' '}
-          <Link to="/login" className="text-blue-600 hover:underline font-semibold">
+          <Link to="/login" className="text-blue-600 hover:text-blue-800 font-semibold transition-colors">
             Sign in
           </Link>
         </p>
@@ -176,5 +169,3 @@ function RegisterPage() {
     </div>
   );
 }
-
-export default RegisterPage;
