@@ -25,6 +25,7 @@ interface ProductFormData {
   warranty: string;
   country_of_origin: string;
   is_active: boolean;
+  is_featured: boolean;
 }
 
 export default function AdminProductForm() {
@@ -55,6 +56,7 @@ export default function AdminProductForm() {
       warranty: '',
       country_of_origin: '',
       is_active: true,
+      is_featured: false,
     },
   });
 
@@ -114,6 +116,7 @@ export default function AdminProductForm() {
         country_of_origin: data.country_of_origin || '',
 
         is_active: data.is_active ?? true,
+        is_featured: data.is_featured ?? false,
       });
 
       return data;
@@ -126,22 +129,25 @@ export default function AdminProductForm() {
   // ذخیره محصول
   // ==========================================
 
+  // بعد از تغییر (کد صحیح):
   const saveMutation = useMutation({
     mutationFn: async (data: ProductFormData) => {
-      // 👈 اینجا کلیدها رو به همون چیزی که جنگو می‌خواد تبدیل می‌کنیم
       const payload = {
         ...data,
+        // برای برند، جنگو فیلد `brand` رو می‌خواد (چون تو سریالایزر brand_id براش نساختی)
         brand: data.brand_id ? Number(data.brand_id) : null,
-        category: data.category_id ? Number(data.category_id) : null
+        // 👈 اما برای کتگوری، همون category_id که سریالایزرت می‌خواد رو مستقیماً مقداردهی می‌کنیم
+        category_id: data.category_id ? Number(data.category_id) : null 
       };
       
-      // پاک کردن کلیدهای اضافی
+      // فقط brand_id رو از payload پاک می‌کنیم (چون به brand تبدیلش کردیم)
+      // category_id رو پاک نمی‌کنیم چون سریالایزر دقیقاً همینو لازم داره!
       delete (payload as any).brand_id;
-      delete (payload as any).category_id;
 
       if (isEditMode) return await api.patch(`/products/${id}/`, payload);
       return await api.post('/products/', payload);
     },
+    // بقیه کدها دست نخورده بمونه...
 
     onSuccess: (response) => {
       queryClient.invalidateQueries({
@@ -418,22 +424,29 @@ export default function AdminProductForm() {
 
             {/* Active */}
 
-            <div className="flex items-center mt-6">
-
-              <input
-                type="checkbox"
-                {...register('is_active')}
-                id="is_active"
-                className="w-5 h-5 text-blue-600 rounded border-gray-300"
-              />
-
-              <label
-                htmlFor="is_active"
-                className="ml-2 font-medium text-gray-700"
-              >
-                Active (Visible in store)
-              </label>
-
+            <div className="md:col-span-2 flex flex-wrap items-center gap-8 mt-4 p-4 bg-gray-50 rounded-xl border border-gray-100">
+              <div className="flex items-center cursor-pointer group">
+                <input
+                  type="checkbox"
+                  {...register('is_active')}
+                  id="is_active"
+                  className="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer"
+                />
+                <label htmlFor="is_active" className="ml-2 font-semibold text-gray-700 cursor-pointer group-hover:text-blue-600 transition-colors">
+                  Active (Visible in store)
+                </label>
+              </div>
+              <div className="flex items-center cursor-pointer group">
+                <input
+                  type="checkbox"
+                  {...register('is_featured')}
+                  id="is_featured"
+                  className="w-5 h-5 text-yellow-500 rounded border-gray-300 focus:ring-yellow-500 cursor-pointer"
+                />
+                <label htmlFor="is_featured" className="ml-2 font-semibold text-gray-700 cursor-pointer group-hover:text-yellow-600 transition-colors">
+                   Featured Product (Shows in special lists)
+                </label>
+              </div>
             </div>
 
           </div>

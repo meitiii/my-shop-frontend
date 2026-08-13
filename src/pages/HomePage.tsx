@@ -28,13 +28,14 @@ interface Product {
   id: number;
   name: string;
   brand: number | null;
-  brand_name: string | null;
+  brand_name?: string | null;
   images: ProductImage[];
   variants: Variant[];
   average_rating: number | string | null;
   category: Category | null;
   category_name?: string;
 }
+
 function useDebounce<T>(value: T, delay: number): T {
   const [debouncedValue, setDebouncedValue] = useState(value);
 
@@ -49,16 +50,15 @@ function useDebounce<T>(value: T, delay: number): T {
   return debouncedValue;
 }
 
-// آپدیت تابع برای دریافت پارامترهای جدید
-const fetchProducts = async (search: string, categoryId: number | null, selectedBrands: number[]) => {
+// اضافه شدن پارامتر ordering به تابع دریافت محصولات
+const fetchProducts = async (search: string, categoryId: number | null, selectedBrands: number[], ordering: string) => {
   const params: any = {};
   if (search) params.search = search;
   if (categoryId) params.category = categoryId;
   if (selectedBrands.length > 0) {
-    // فرض بر این است که پکیج django-filter می‌تونه لیستی از برندها رو هندل کنه
-    // معمولا فرمت URL اینطوری میشه: ?brand=1&brand=2
     params.brand = selectedBrands.join(',');
   }
+  if (ordering) params.ordering = ordering; // 👈 ارسال نحوه مرتب‌سازی به بک‌اند
 
   const response = await api.get('/products/', { params });
   return response.data.results || response.data;
@@ -66,33 +66,38 @@ const fetchProducts = async (search: string, categoryId: number | null, selected
 
 export default function HomePage() {
   const [searchInput, setSearchInput] = useState('');
-  const debouncedSearchTerm = useDebounce(searchInput, 500); // 500ms مکث
+  const debouncedSearchTerm = useDebounce(searchInput, 500); 
   
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
   const [selectedBrands, setSelectedBrands] = useState<number[]>([]);
+  
+  // 👈 استیت جدید برای مرتب‌سازی (پیش‌فرض: جدیدترین)
+  const [ordering, setOrdering] = useState('-created_at');
   
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
 
   // دریافت دسته‌بندی‌ها
   const { data: categories = [] } = useQuery({
-  queryKey: ['categories'],
-  queryFn: async () => {
-    const response = await api.get('/categories/');
-    return response.data.results || response.data;
-  },
-});
+    queryKey: ['categories'],
+    queryFn: async () => {
+      const response = await api.get('/categories/'); // آدرس‌ها رو بر اساس بک‌اندت چک کن
+      return response.data.results || response.data;
+    },
+  });
 
- const { data: brands = [] } = useQuery({
-  queryKey: ['brands'],
-  queryFn: async () => {
-    const response = await api.get('/brands/');
-    return response.data.results || response.data;
-  },
-});
-  // دریافت محصولات با در نظر گرفتن دیبونس و فیلترها
+  // دریافت برندها
+  const { data: brands = [] } = useQuery({
+    queryKey: ['brands'],
+    queryFn: async () => {
+      const response = await api.get('/brands/');
+      return response.data.results || response.data;
+    },
+  });
+
+  // دریافت محصولات + ارسال پارامتر ordering
   const { data: products, isLoading: productsLoading, isError: productsError } = useQuery({
-    queryKey: ['products', debouncedSearchTerm, selectedCategory, selectedBrands],
-    queryFn: () => fetchProducts(debouncedSearchTerm, selectedCategory, selectedBrands),
+    queryKey: ['products', debouncedSearchTerm, selectedCategory, selectedBrands, ordering],
+    queryFn: () => fetchProducts(debouncedSearchTerm, selectedCategory, selectedBrands, ordering),
   });
 
   const toggleBrand = (brandId: number) => {
@@ -105,6 +110,7 @@ export default function HomePage() {
     setSearchInput('');
     setSelectedCategory(null);
     setSelectedBrands([]);
+    setOrdering('-created_at'); // ریست کردن مرتب‌سازی
   };
 
   const FiltersSidebar = () => (
@@ -195,7 +201,6 @@ export default function HomePage() {
             )}
           </div>
 
-          {/* دکمه فیلتر مخصوص موبایل */}
           <button 
             onClick={() => setIsMobileFiltersOpen(true)}
             className="md:hidden w-full flex items-center justify-center gap-2 py-3 bg-white border border-gray-200 rounded-xl font-bold text-gray-700 shadow-sm"
@@ -206,12 +211,12 @@ export default function HomePage() {
 
         <div className="flex flex-col md:flex-row gap-8">
           
-          {/* سایدبار فیلترها (دسکتاپ) */}
+          {/* سایدبار */}
           <div className="hidden md:block w-64 flex-shrink-0">
             <FiltersSidebar />
           </div>
 
-          {/* مودال فیلترها (موبایل) */}
+          {/* مودال موبایل */}
           {isMobileFiltersOpen && (
             <div className="fixed inset-0 z-50 flex md:hidden">
               <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setIsMobileFiltersOpen(false)}></div>
@@ -222,8 +227,42 @@ export default function HomePage() {
             </div>
           )}
 
-          {/* شبکه محصولات (Products Grid) */}
-          <div className="flex-1">
+          {/* بخش اصلی محصولات */}
+          <div className="flex-1 flex flex-col">
+            
+            {/* 👈 نوار مرتب‌سازی */}
+            <div className="flex items-center gap-4 mb-6 bg-white p-3 md:p-4 rounded-2xl shadow-sm border border-gray-100 overflow-x-auto hide-scrollbar">
+              <span className="text-gray-500 font-bold text-sm whitespace-nowrap flex items-center gap-1.5 ml-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m3 16 4 4 4-4"/><path d="M7 20V4"/><path d="m21 8-4-4-4 4"/><path d="M17 4v16"/></svg>
+                Sort by:
+              </span>
+              
+              <div className="flex gap-2">
+                {[
+                  { label: 'Newest', value: '-created_at' },
+                  { label: 'Cheapest', value: 'min_price' },
+                  { label: 'Most Expensive', value: '-min_price' },
+                  { label: 'Best Selling', value: '-sales_count' },
+                  { label: 'Most Viewed', value: '-views_count' },
+                  { label: 'Highly Rated', value: '-average_rating' },
+                  { label: 'Featured', value: '-is_featured' },
+                ].map((opt) => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setOrdering(opt.value)}
+                    className={`px-4 py-1.5 rounded-lg text-sm font-semibold whitespace-nowrap transition-colors ${
+                      ordering === opt.value 
+                        ? 'bg-blue-50 text-blue-700' 
+                        : 'text-gray-600 hover:bg-gray-50'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* گرید محصولات */}
             {productsLoading ? (
               <div className="flex flex-col items-center justify-center h-64 bg-white rounded-2xl border border-gray-100 shadow-sm">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
@@ -251,8 +290,9 @@ export default function HomePage() {
                   const discountPercent = defaultVariant?.discount_percent || 0;
                   const finalPrice = originalPrice - (originalPrice * (discountPercent / 100));
                   
-                  // هندل کردن زمانی که بک‌اند اسم برند رو میفرسته یا آبجکت برند رو
-                  
+                  // 👈 ترفند جادویی برای نمایش قطعی اسم برند (حتی اگر سریالایزر نفرستاد)
+                  const matchedBrand = brands?.find((b: any) => b.id === product.brand);
+                  const finalBrandName = product.brand_name || matchedBrand?.name || 'Unbranded';
 
                   return (
                     <Link 
@@ -280,9 +320,10 @@ export default function HomePage() {
                         </div>
                         
                         <div>
+                          {/* نمایش اسم برند اصلاح شد */}
                           <p className="text-xs text-blue-600 font-bold uppercase mb-1 tracking-wider">
-  {product.brand_name || 'Unbranded'}
-</p>
+                            {finalBrandName}
+                          </p>
                           <h3 className="font-bold text-gray-900 text-lg mb-1 line-clamp-2 leading-tight group-hover:text-blue-600 transition-colors">{product.name}</h3>
                         </div>
                       </div>
