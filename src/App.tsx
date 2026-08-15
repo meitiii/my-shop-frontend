@@ -1,5 +1,5 @@
 // src/App.tsx
-import { Routes, Route, Link, useNavigate, Navigate, useLocation } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from './store/authStore';
 
 import AdminBrandsPage from './pages/admin/AdminBrandsPage';
@@ -17,8 +17,10 @@ import PaymentVerifyPage from './pages/PaymentVerifyPage';
 import AdminProductsPage from './pages/admin/AdminProductsPage';
 import AdminProductForm from './pages/admin/AdminProductForm';
 import Footer from './components/Footer'; 
+import Header from './components/Header'; 
 import type { ReactNode } from 'react';
 import AdminSlidersPage from './pages/admin/AdminSlidersPage';
+
 const AdminRoute = ({ children }: { children: ReactNode }) => {
   const isAdmin = useAuthStore((state) => state.isAdmin);
 
@@ -31,57 +33,17 @@ const AdminRoute = ({ children }: { children: ReactNode }) => {
 
 // این کامپوننت حاوی محتوای اصلی سایت است تا useLocation به درستی کار کند
 function AppContent() {
-  const accessToken = useAuthStore((state) => state.accessToken);
-  const logout = useAuthStore((state) => state.logout);
-  const navigate = useNavigate();
   const location = useLocation();
-
-  const isAuthenticated = !!accessToken;
   const isAdminRoute = location.pathname.startsWith('/dashboard');
 
-  const handleLogout = () => {
-    logout();
-    navigate('/');
-  };
-
   return (
-    <div className="flex flex-col min-h-screen">
-      {/* Header */}
-      <header className="bg-white shadow-sm p-4 mb-4">
-        <nav className="container mx-auto flex justify-between items-center">
-          <Link to="/" className="text-2xl font-bold text-blue-600">My Shop</Link>
-          
-          <div className="space-x-4 space-x-reverse flex items-center">
-            <Link to="/" className="text-gray-600 hover:text-blue-600">Home</Link>
-            
-            {isAuthenticated ? (
-              <>
-                <Link to="/profile" className="text-gray-600 hover:text-blue-600">Profile</Link>
-                <Link to="/cart" className="text-gray-600 hover:text-blue-600">Cart</Link>
-                <Link to="/orders" className="text-gray-600 hover:text-blue-600">My Orders</Link>
-                <button 
-                  onClick={handleLogout}
-                  className="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 font-semibold transition-colors"
-                >
-                  Logout
-                </button>
-              </>
-            ) : (
-              <>
-                <Link to="/login" className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 font-semibold transition-colors">
-                  Login
-                </Link>
-                <Link to="/register" className="text-gray-600 hover:text-blue-600 font-semibold">
-                  Sign Up
-                </Link>
-              </>
-            )}
-          </div>
-        </nav>
-      </header>
+    <div className="flex flex-col min-h-screen bg-gray-50">
+      
+      {/* هدر جدید با مگامنو - فقط در صفحات غیر ادمین نمایش داده می‌شود */}
+      {!isAdminRoute && <Header />}
 
       {/* Main Content */}
-      <main className="container mx-auto flex-grow">
+      <main className="flex-grow">
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/product/:id" element={<ProductDetailPage />} />
