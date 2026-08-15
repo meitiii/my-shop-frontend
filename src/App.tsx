@@ -1,3 +1,7 @@
+// src/App.tsx
+import { Routes, Route, Link, useNavigate, Navigate, useLocation } from 'react-router-dom';
+import { useAuthStore } from './store/authStore';
+
 import AdminBrandsPage from './pages/admin/AdminBrandsPage';
 import AdminCategoriesPage from './pages/admin/AdminCategoriesPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
@@ -10,40 +14,39 @@ import OrdersPage from './pages/OrdersPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import PaymentVerifyPage from './pages/PaymentVerifyPage';
-
-
 import AdminProductsPage from './pages/admin/AdminProductsPage';
 import AdminProductForm from './pages/admin/AdminProductForm';
-import { useAuthStore } from './store/authStore';
+import Footer from './components/Footer'; 
 import type { ReactNode } from 'react';
-import { Routes, Route, Link, useNavigate, Navigate } from 'react-router-dom';
+import AdminSlidersPage from './pages/admin/AdminSlidersPage';
 const AdminRoute = ({ children }: { children: ReactNode }) => {
   const isAdmin = useAuthStore((state) => state.isAdmin);
-
-  //console.log("AdminRoute isAdmin:", isAdmin);
 
   if (!isAdmin) {
     return <Navigate to="/" replace />;
   }
 
-  return children;
+  return <>{children}</>;
 };
-function App() {
-  // گرفتن توکن و تابع خروج از استور Zustand
+
+// این کامپوننت حاوی محتوای اصلی سایت است تا useLocation به درستی کار کند
+function AppContent() {
   const accessToken = useAuthStore((state) => state.accessToken);
   const logout = useAuthStore((state) => state.logout);
   const navigate = useNavigate();
+  const location = useLocation();
 
-  // تبدیل توکن به یک مقدار بولین (True/False): اگر توکن باشه میشه true، اگر null باشه میشه false
   const isAuthenticated = !!accessToken;
+  const isAdminRoute = location.pathname.startsWith('/dashboard');
 
   const handleLogout = () => {
-    logout(); // پاک کردن توکن
-    navigate('/'); // هدایت به صفحه اصلی بعد از خروج
+    logout();
+    navigate('/');
   };
 
   return (
-    <> 
+    <div className="flex flex-col min-h-screen">
+      {/* Header */}
       <header className="bg-white shadow-sm p-4 mb-4">
         <nav className="container mx-auto flex justify-between items-center">
           <Link to="/" className="text-2xl font-bold text-blue-600">My Shop</Link>
@@ -51,7 +54,6 @@ function App() {
           <div className="space-x-4 space-x-reverse flex items-center">
             <Link to="/" className="text-gray-600 hover:text-blue-600">Home</Link>
             
-            {/* شرط‌گذاری: اگر کاربر لاگین کرده بود */}
             {isAuthenticated ? (
               <>
                 <Link to="/profile" className="text-gray-600 hover:text-blue-600">Profile</Link>
@@ -65,7 +67,6 @@ function App() {
                 </button>
               </>
             ) : (
-              /* اگر کاربر لاگین نکرده بود */
               <>
                 <Link to="/login" className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 font-semibold transition-colors">
                   Login
@@ -79,52 +80,41 @@ function App() {
         </nav>
       </header>
 
-      <main className="container mx-auto">
+      {/* Main Content */}
+      <main className="container mx-auto flex-grow">
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/product/:id" element={<ProductDetailPage />} />
           <Route path="/cart" element={<CartPage />} />
           <Route path="/orders" element={<OrdersPage />} />
           <Route path="/login" element={<LoginPage />} />
-          {/* صفحه Register رو هم به زودی می‌سازیم، پس فعلا خطاش 404 میده که طبیعیه */}
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/payment/verify" element={<PaymentVerifyPage />} />
+          
           {/* Admin Routes */}
-          <Route
-  path="/dashboard/products"
-  element={
-    <AdminRoute>
-      <AdminProductsPage />
-    </AdminRoute>
-  }
-/>
-<Route 
-  path="/dashboard/products/new" 
-  element={
-    <AdminRoute>
-      <AdminProductForm />
-    </AdminRoute>
-  } 
-/>
-<Route 
-  path="/dashboard/products/edit/:id" 
-  element={
-    <AdminRoute>
-      <AdminProductForm />
-    </AdminRoute>
-  } 
-/>
-{/* */}
+          <Route path="/dashboard/products" element={<AdminRoute><AdminProductsPage /></AdminRoute>} />
+          <Route path="/dashboard/products/new" element={<AdminRoute><AdminProductForm /></AdminRoute>} />
+          <Route path="/dashboard/products/edit/:id" element={<AdminRoute><AdminProductForm /></AdminRoute>} />
           <Route path="/dashboard/brands" element={<AdminRoute><AdminBrandsPage /></AdminRoute>} />
           <Route path="/dashboard/categories" element={<AdminRoute><AdminCategoriesPage /></AdminRoute>} />
+          <Route path="/dashboard/sliders" element={<AdminRoute><AdminSlidersPage /></AdminRoute>} />
+          
+          {/* Auth Extras */}
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password/:uid/:token" element={<ResetPasswordPage />} />  
-          <Route path="*" element={<div className="p-8 text-center text-red-500">Page Not Found (404)</div>} />
+          
+          <Route path="*" element={<div className="p-8 text-center text-red-500 font-bold text-xl">Page Not Found (404)</div>} />
         </Routes>
       </main>
-    </>
+
+      {/* Footer - Only shows if NOT on an admin dashboard route */}
+      {!isAdminRoute && <Footer />}
+    </div>
   );
 }
 
-export default App;
+// کامپوننت اصلی که اکسپورت می‌شود
+export default function App() {
+  return <AppContent />;
+}
