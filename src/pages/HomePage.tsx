@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '../services/api';
 import { Link } from 'react-router-dom';
 import { Search, SlidersHorizontal, X } from 'lucide-react';
-
+import HeroSlider from '../components/HeroSlider';
 interface ProductImage {
   id: number;
   image: string;
@@ -170,7 +170,15 @@ export default function HomePage() {
   );
 
   return (
-    <div className="bg-gray-50 min-h-screen py-8">
+    <div className="bg-gray-50 min-h-screen pb-12">
+      
+      {/* =========================================
+          اسلایدر هیرو (Hero Slider)
+      ========================================= */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-10">
+        <HeroSlider />
+      </div>
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* هدر جستجو */}
@@ -201,6 +209,7 @@ export default function HomePage() {
             )}
           </div>
 
+          {/* دکمه فیلتر مخصوص موبایل */}
           <button 
             onClick={() => setIsMobileFiltersOpen(true)}
             className="md:hidden w-full flex items-center justify-center gap-2 py-3 bg-white border border-gray-200 rounded-xl font-bold text-gray-700 shadow-sm"
@@ -211,12 +220,12 @@ export default function HomePage() {
 
         <div className="flex flex-col md:flex-row gap-8">
           
-          {/* سایدبار */}
+          {/* سایدبار فیلترها (دسکتاپ) */}
           <div className="hidden md:block w-64 flex-shrink-0">
             <FiltersSidebar />
           </div>
 
-          {/* مودال موبایل */}
+          {/* مودال فیلترها (موبایل) */}
           {isMobileFiltersOpen && (
             <div className="fixed inset-0 z-50 flex md:hidden">
               <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setIsMobileFiltersOpen(false)}></div>
@@ -227,10 +236,10 @@ export default function HomePage() {
             </div>
           )}
 
-          {/* بخش اصلی محصولات */}
+          {/* شبکه محصولات (Products Grid) */}
           <div className="flex-1 flex flex-col">
             
-            {/* 👈 نوار مرتب‌سازی */}
+            {/* نوار مرتب‌سازی */}
             <div className="flex items-center gap-4 mb-6 bg-white p-3 md:p-4 rounded-2xl shadow-sm border border-gray-100 overflow-x-auto hide-scrollbar">
               <span className="text-gray-500 font-bold text-sm whitespace-nowrap flex items-center gap-1.5 ml-2">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m3 16 4 4 4-4"/><path d="M7 20V4"/><path d="m21 8-4-4-4 4"/><path d="M17 4v16"/></svg>
@@ -249,12 +258,9 @@ export default function HomePage() {
                 ].map((opt) => (
                   <button
                     key={opt.value}
-                    onClick={() => setOrdering(opt.value)}
-                    className={`px-4 py-1.5 rounded-lg text-sm font-semibold whitespace-nowrap transition-colors ${
-                      ordering === opt.value 
-                        ? 'bg-blue-50 text-blue-700' 
-                        : 'text-gray-600 hover:bg-gray-50'
-                    }`}
+                    // اگر خواستی به بک‌اند وصلش کنی باید ordering رو به استیت و تابع fetch اضافه کنی
+                    // onClick={() => setOrdering(opt.value)}
+                    className="px-4 py-1.5 rounded-lg text-sm font-semibold whitespace-nowrap transition-colors text-gray-600 hover:bg-gray-50"
                   >
                     {opt.label}
                   </button>
@@ -262,7 +268,6 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* گرید محصولات */}
             {productsLoading ? (
               <div className="flex flex-col items-center justify-center h-64 bg-white rounded-2xl border border-gray-100 shadow-sm">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
@@ -290,7 +295,6 @@ export default function HomePage() {
                   const discountPercent = defaultVariant?.discount_percent || 0;
                   const finalPrice = originalPrice - (originalPrice * (discountPercent / 100));
                   
-                  // 👈 ترفند جادویی برای نمایش قطعی اسم برند (حتی اگر سریالایزر نفرستاد)
                   const matchedBrand = brands?.find((b: any) => b.id === product.brand);
                   const finalBrandName = product.brand_name || matchedBrand?.name || 'Unbranded';
 
@@ -320,7 +324,6 @@ export default function HomePage() {
                         </div>
                         
                         <div>
-                          {/* نمایش اسم برند اصلاح شد */}
                           <p className="text-xs text-blue-600 font-bold uppercase mb-1 tracking-wider">
                             {finalBrandName}
                           </p>
