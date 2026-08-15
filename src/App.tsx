@@ -16,6 +16,7 @@ import RegisterPage from './pages/RegisterPage';
 import PaymentVerifyPage from './pages/PaymentVerifyPage';
 import AdminProductsPage from './pages/admin/AdminProductsPage';
 import AdminProductForm from './pages/admin/AdminProductForm';
+import SearchPage from './pages/SearchPage';
 import Footer from './components/Footer'; 
 import Header from './components/Header'; 
 import type { ReactNode } from 'react';
@@ -45,6 +46,7 @@ function AppContent() {
       {/* Main Content */}
       <main className="flex-grow">
         <Routes>
+
           <Route path="/" element={<HomePage />} />
           <Route path="/product/:id" element={<ProductDetailPage />} />
           <Route path="/cart" element={<CartPage />} />
@@ -53,7 +55,8 @@ function AppContent() {
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/payment/verify" element={<PaymentVerifyPage />} />
-          
+           <Route path="/search" element={<SearchPage />} />
+          <Route path="/category/:slug" element={<SearchPage />} /> {/* 👈 این خط اضافه شد */}
           {/* Admin Routes */}
           <Route path="/dashboard/products" element={<AdminRoute><AdminProductsPage /></AdminRoute>} />
           <Route path="/dashboard/products/new" element={<AdminRoute><AdminProductForm /></AdminRoute>} />
@@ -65,6 +68,7 @@ function AppContent() {
           {/* Auth Extras */}
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password/:uid/:token" element={<ResetPasswordPage />} />  
+
           
           <Route path="*" element={<div className="p-8 text-center text-red-500 font-bold text-xl">Page Not Found (404)</div>} />
         </Routes>
