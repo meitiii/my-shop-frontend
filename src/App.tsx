@@ -1,7 +1,7 @@
 // src/App.tsx
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from './store/authStore';
-
+import ScrollToTop from './components/ScrollToTop';
 import AdminBrandsPage from './pages/admin/AdminBrandsPage';
 import AdminCategoriesPage from './pages/admin/AdminCategoriesPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
@@ -39,7 +39,7 @@ function AppContent() {
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
-      
+      <ScrollToTop />
       {/* هدر جدید با مگامنو - فقط در صفحات غیر ادمین نمایش داده می‌شود */}
       {!isAdminRoute && <Header />}
 
