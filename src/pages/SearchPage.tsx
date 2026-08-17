@@ -1,6 +1,6 @@
 // src/pages/SearchPage.tsx
 import { useState, useEffect } from 'react';
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query'; // 👈 اضافه شدن useInfiniteQuery
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { api } from '../services/api';
 import { Link, useParams, useNavigate, useLocation } from 'react-router-dom';
 import { 
@@ -38,14 +38,13 @@ function useDebounce<T>(value: T, delay: number): T {
   return debouncedValue;
 }
 
-// 👈 تغییر ساختار تابع برای پشتیبانی از pageParam
 const fetchProducts = async ({ pageParam = 1, queryKey }: any) => {
   const [
     _key, search, categoryId, selectedBrands, ordering, 
     inStock, minPrice, maxPrice, dynamicFilters
   ] = queryKey;
 
-  const params: any = { page: pageParam }; // 👈 ارسال شماره صفحه به جنگو
+  const params: any = { page: pageParam };
 
   if (search) params.search = search;
   if (categoryId) params.category = categoryId;
@@ -67,7 +66,7 @@ const fetchProducts = async ({ pageParam = 1, queryKey }: any) => {
   });
 
   const response = await api.get('/products/', { params });
-  return response.data; // 👈 اینجا کل آبجکت (شامل next و results) رو برمی‌گردونیم
+  return response.data;
 };
 
 const SLIDER_MAX = 5000; 
@@ -150,32 +149,27 @@ export default function SearchPage() {
     },
   });
 
-  // ==========================================
-  // 👈 جایگزینی useQuery با useInfiniteQuery
-  // ==========================================
   const { 
     data: productsData, 
     isLoading: productsLoading, 
     isError: productsError,
-    fetchNextPage,        // تابعی برای گرفتن صفحه بعدی
-    hasNextPage,          // آیا صفحه بعدی وجود داره؟
-    isFetchingNextPage    // آیا در حال لود صفحه بعدی هستیم؟
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage
   } = useInfiniteQuery({
     queryKey: ['products', debouncedSearchTerm, selectedCategory, selectedBrands, ordering, inStock, debouncedMinPrice, debouncedMaxPrice, selectedDynamicFilters],
     queryFn: fetchProducts,
-    initialPageParam: 1, // از صفحه 1 شروع میکنه
+    initialPageParam: 1,
     getNextPageParam: (lastPage, allPages) => {
-      // جنگو اگر صفحه بعدی وجود داشته باشه، آدرسش رو تو lastPage.next میذاره
       if (lastPage.next) {
-        return allPages.length + 1; // شماره صفحه بعدی رو برمی‌گردونیم
+        return allPages.length + 1;
       }
-      return undefined; // اگر صفحه بعدی نبود، یعنی تموم شده
+      return undefined;
     },
   });
 
-  // ادغام کردن تمام صفحات (Pages) به یک آرایه یکپارچه از محصولات
   const products = productsData?.pages.flatMap((page: any) => page.results || page) || [];
-  const totalCount = productsData?.pages[0]?.count || products.length; // تعداد کل محصولات
+  const totalCount = productsData?.pages[0]?.count || products.length;
 
   const handleCategoryChange = (cat: any | null) => {
     setSelectedDynamicFilters({});
@@ -406,7 +400,6 @@ export default function SearchPage() {
               {slug ? slug.replace('-', ' ') : 'Explore Products'}
             </h1>
             <p className="text-gray-500 mt-1 text-sm">
-              {/* 👈 نمایش تعداد نتایج پیدا شده */}
               {totalCount > 0 ? `Showing ${products.length} of ${totalCount} results.` : "Find exactly what you're looking for."}
             </p>
           </div>
@@ -471,10 +464,34 @@ export default function SearchPage() {
               </div>
             </div>
 
+            {/* ==========================================
+                اسکلتون‌های حرفه‌ای در زمان لود اولیه
+            ========================================== */}
             {productsLoading ? (
-              <div className="flex flex-col items-center justify-center h-80 bg-white rounded-3xl border border-gray-100 shadow-sm">
-                <Loader2 className="animate-spin text-blue-600 mb-4" size={48} />
-                <p className="text-gray-500 font-medium">Searching our catalog...</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {Array.from({ length: 8 }).map((_, index) => (
+                  <div key={index} className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden flex flex-col justify-between h-[420px]">
+                    <div className="p-4 animate-pulse">
+                      {/* جایگاه عکس */}
+                      <div className="h-52 rounded-2xl bg-gray-200 mb-4"></div>
+                      {/* جایگاه متن‌ها */}
+                      <div>
+                        <div className="h-3 w-1/4 bg-blue-100 rounded mb-3"></div>
+                        <div className="h-5 w-full bg-gray-200 rounded mb-2"></div>
+                        <div className="h-5 w-2/3 bg-gray-200 rounded"></div>
+                      </div>
+                    </div>
+                    <div className="px-5 pb-5 pt-0 flex justify-between items-end animate-pulse">
+                      {/* جایگاه قیمت */}
+                      <div className="flex flex-col gap-2">
+                        <div className="h-3 w-12 bg-gray-200 rounded"></div>
+                        <div className="h-6 w-20 bg-gray-300 rounded"></div>
+                      </div>
+                      {/* جایگاه امتیاز */}
+                      <div className="h-6 w-12 bg-yellow-50 rounded-lg"></div>
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : productsError ? (
               <div className="text-center py-12 bg-white rounded-3xl border border-red-100 text-red-500 shadow-sm font-bold">Failed to load products.</div>
@@ -487,7 +504,6 @@ export default function SearchPage() {
               </div>
             ) : (
               <>
-                {/* گرید محصولات */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                   {products.map((product: Product) => {
                     const coverImage = product.images?.find(img => img.is_main) || product.images?.[0];
@@ -535,9 +551,6 @@ export default function SearchPage() {
                   })}
                 </div>
 
-                {/* ==========================================
-                    دکمه مشاهده بیشتر (Load More)
-                ========================================== */}
                 {hasNextPage && (
                   <div className="mt-12 flex justify-center">
                     <button
