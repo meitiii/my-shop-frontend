@@ -1,12 +1,12 @@
 // src/pages/SearchPage.tsx
 import { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query'; // 👈 اضافه شدن useInfiniteQuery
 import { api } from '../services/api';
 import { Link, useParams, useNavigate, useLocation } from 'react-router-dom';
 import { 
   Search, SlidersHorizontal, X, PackageOpen, 
   DollarSign, ChevronDown, LayoutGrid, Tag,
-  Cpu // آیکون جدید برای فیلترهای داینامیک
+  Cpu, Loader2
 } from 'lucide-react';
 
 interface ProductImage {
@@ -38,17 +38,15 @@ function useDebounce<T>(value: T, delay: number): T {
   return debouncedValue;
 }
 
-const fetchProducts = async (
-  search: string, 
-  categoryId: number | null, 
-  selectedBrands: number[], 
-  ordering: string,
-  inStock: boolean,
-  minPrice: string | number,
-  maxPrice: string | number,
-  dynamicFilters: Record<string, string[]> // 👈 فیلترهای داینامیک اضافه شد
-) => {
-  const params: any = {};
+// 👈 تغییر ساختار تابع برای پشتیبانی از pageParam
+const fetchProducts = async ({ pageParam = 1, queryKey }: any) => {
+  const [
+    _key, search, categoryId, selectedBrands, ordering, 
+    inStock, minPrice, maxPrice, dynamicFilters
+  ] = queryKey;
+
+  const params: any = { page: pageParam }; // 👈 ارسال شماره صفحه به جنگو
+
   if (search) params.search = search;
   if (categoryId) params.category = categoryId;
   if (selectedBrands.length > 0) params.brand = selectedBrands.join(',');
@@ -58,22 +56,18 @@ const fetchProducts = async (
   if (minPrice) params.min_price = minPrice;
   if (maxPrice) params.max_price = maxPrice;
 
-  // 👈 پردازش فیلترهای داینامیک برای ارسال به بک‌اند
-  Object.entries(dynamicFilters).forEach(([key, values]) => {
+  Object.entries(dynamicFilters as Record<string, string[]>).forEach(([key, values]) => {
     if (values.length > 0) {
       if (key === 'Special Features') {
-        // برای ویژگی‌های خاص، پارامتر feature می‌فرستیم
-        // Axios به صورت پیش‌فرض آرایه‌ها رو برای URL سریالایز می‌کنه
         params.feature = values;
       } else {
-        // برای مشخصات فنی، مقدار رو می‌فرستیم (فعلاً اولین مقدار انتخاب شده برای هر کلید)
         params[`spec_${key}`] = values[0];
       }
     }
   });
 
   const response = await api.get('/products/', { params });
-  return response.data.results || response.data;
+  return response.data; // 👈 اینجا کل آبجکت (شامل next و results) رو برمی‌گردونیم
 };
 
 const SLIDER_MAX = 5000; 
@@ -95,14 +89,12 @@ export default function SearchPage() {
   const debouncedMinPrice = useDebounce(minPrice, 500);
   const debouncedMaxPrice = useDebounce(maxPrice, 500);
 
-  // 👈 استیت برای ذخیره تیک‌های فیلترهای داینامیک (مثلاً { "RAM": ["8GB"], "Special Features": ["Waterproof"] })
   const [selectedDynamicFilters, setSelectedDynamicFilters] = useState<Record<string, string[]>>({});
 
   const [isCategoryOpen, setIsCategoryOpen] = useState(true);
   const [isPriceOpen, setIsPriceOpen] = useState(true);
   const [isBrandOpen, setIsBrandOpen] = useState(true);
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
-  // استیت برای مدیریت باز/بسته بودن آکاردئون‌های داینامیک
   const [openDynamicAccordions, setOpenDynamicAccordions] = useState<Record<string, boolean>>({});
 
   const { data: categories = [] } = useQuery({
@@ -141,7 +133,6 @@ export default function SearchPage() {
     }
   }, [slug, categories]);
 
-  // 👈 ۱. دریافت فیلترهای داینامیک از بک‌اند بر اساس دسته‌بندی فعلی
   const { data: availableDynamicFilters = {} } = useQuery({
     queryKey: ['available-filters', selectedCategory],
     queryFn: async () => {
@@ -149,7 +140,6 @@ export default function SearchPage() {
       if (selectedCategory) params.category = selectedCategory;
       const response = await api.get('/products/available_filters/', { params });
       
-      // به طور پیش‌فرض تمام آکاردئون‌های داینامیک رو باز می‌ذاریم
       const initialAccordionState: Record<string, boolean> = {};
       Object.keys(response.data).forEach(key => {
         initialAccordionState[key] = true;
@@ -160,14 +150,34 @@ export default function SearchPage() {
     },
   });
 
-  // 👈 ۲. اضافه کردن فیلترهای داینامیک به درخواست دریافت محصولات
-  const { data: products, isLoading: productsLoading, isError: productsError } = useQuery({
+  // ==========================================
+  // 👈 جایگزینی useQuery با useInfiniteQuery
+  // ==========================================
+  const { 
+    data: productsData, 
+    isLoading: productsLoading, 
+    isError: productsError,
+    fetchNextPage,        // تابعی برای گرفتن صفحه بعدی
+    hasNextPage,          // آیا صفحه بعدی وجود داره؟
+    isFetchingNextPage    // آیا در حال لود صفحه بعدی هستیم؟
+  } = useInfiniteQuery({
     queryKey: ['products', debouncedSearchTerm, selectedCategory, selectedBrands, ordering, inStock, debouncedMinPrice, debouncedMaxPrice, selectedDynamicFilters],
-    queryFn: () => fetchProducts(debouncedSearchTerm, selectedCategory, selectedBrands, ordering, inStock, debouncedMinPrice, debouncedMaxPrice, selectedDynamicFilters),
+    queryFn: fetchProducts,
+    initialPageParam: 1, // از صفحه 1 شروع میکنه
+    getNextPageParam: (lastPage, allPages) => {
+      // جنگو اگر صفحه بعدی وجود داشته باشه، آدرسش رو تو lastPage.next میذاره
+      if (lastPage.next) {
+        return allPages.length + 1; // شماره صفحه بعدی رو برمی‌گردونیم
+      }
+      return undefined; // اگر صفحه بعدی نبود، یعنی تموم شده
+    },
   });
 
+  // ادغام کردن تمام صفحات (Pages) به یک آرایه یکپارچه از محصولات
+  const products = productsData?.pages.flatMap((page: any) => page.results || page) || [];
+  const totalCount = productsData?.pages[0]?.count || products.length; // تعداد کل محصولات
+
   const handleCategoryChange = (cat: any | null) => {
-    // وقتی دسته‌بندی عوض میشه، فیلترهای داینامیک قبلی رو پاک می‌کنیم
     setSelectedDynamicFilters({});
     if (cat) {
       navigate({ pathname: `/category/${cat.slug}`, search: location.search });
@@ -180,7 +190,6 @@ export default function SearchPage() {
     setSelectedBrands(prev => prev.includes(brandId) ? prev.filter(id => id !== brandId) : [...prev, brandId]);
   };
 
-  // تابع برای مدیریت تیک خوردن فیلترهای داینامیک
   const toggleDynamicFilter = (filterKey: string, filterValue: string) => {
     setSelectedDynamicFilters(prev => {
       const currentSelected = prev[filterKey] || [];
@@ -313,9 +322,6 @@ export default function SearchPage() {
         </div>
       </div>
 
-      {/* ==========================================
-          رندر داینامیک فیلترهای استخراج شده از بک‌اند
-      ========================================== */}
       {Object.entries(availableDynamicFilters).map(([filterKey, filterValues]: [string, any]) => {
         const isOpen = openDynamicAccordions[filterKey] ?? true;
         const isSpecialFeature = filterKey === 'Special Features';
@@ -327,7 +333,6 @@ export default function SearchPage() {
               className="flex items-center justify-between w-full group"
             >
               <h3 className="font-bold text-gray-800 text-sm flex items-center gap-2">
-                {/* اگر ویژگی خاص بود آیکون ستاره، وگرنه آیکون پردازنده/سخت‌افزار */}
                 {isSpecialFeature 
                   ? <Tag size={18} className="text-orange-400 group-hover:text-orange-600 transition-colors" /> 
                   : <Cpu size={18} className="text-gray-400 group-hover:text-blue-600 transition-colors" />
@@ -400,7 +405,10 @@ export default function SearchPage() {
             <h1 className="text-3xl font-extrabold text-gray-900 capitalize tracking-tight">
               {slug ? slug.replace('-', ' ') : 'Explore Products'}
             </h1>
-            <p className="text-gray-500 mt-1 text-sm">Find exactly what you're looking for.</p>
+            <p className="text-gray-500 mt-1 text-sm">
+              {/* 👈 نمایش تعداد نتایج پیدا شده */}
+              {totalCount > 0 ? `Showing ${products.length} of ${totalCount} results.` : "Find exactly what you're looking for."}
+            </p>
           </div>
           
           <div className="w-full md:w-[400px] relative">
@@ -465,7 +473,7 @@ export default function SearchPage() {
 
             {productsLoading ? (
               <div className="flex flex-col items-center justify-center h-80 bg-white rounded-3xl border border-gray-100 shadow-sm">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
+                <Loader2 className="animate-spin text-blue-600 mb-4" size={48} />
                 <p className="text-gray-500 font-medium">Searching our catalog...</p>
               </div>
             ) : productsError ? (
@@ -478,52 +486,77 @@ export default function SearchPage() {
                 <button onClick={clearFilters} className="px-6 py-2.5 bg-blue-50 text-blue-700 font-bold rounded-xl hover:bg-blue-100 transition-colors">Clear All Filters</button>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {products.map((product: Product) => {
-                  const coverImage = product.images?.find(img => img.is_main) || product.images?.[0];
-                  const defaultVariant = product.variants?.[0];
-                  const originalPrice = defaultVariant ? defaultVariant.price : 0;
-                  const discountPercent = defaultVariant?.discount_percent || 0;
-                  const finalPrice = originalPrice - (originalPrice * (discountPercent / 100));
-                  const matchedBrand = brands?.find((b: any) => b.id === product.brand);
-                  const finalBrandName = product.brand_name || matchedBrand?.name || 'Unbranded';
+              <>
+                {/* گرید محصولات */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                  {products.map((product: Product) => {
+                    const coverImage = product.images?.find(img => img.is_main) || product.images?.[0];
+                    const defaultVariant = product.variants?.[0];
+                    const originalPrice = defaultVariant ? defaultVariant.price : 0;
+                    const discountPercent = defaultVariant?.discount_percent || 0;
+                    const finalPrice = originalPrice - (originalPrice * (discountPercent / 100));
+                    const matchedBrand = brands?.find((b: any) => b.id === product.brand);
+                    const finalBrandName = product.brand_name || matchedBrand?.name || 'Unbranded';
 
-                  return (
-                    <Link to={`/product/${product.id}`} key={product.id} className="bg-white rounded-3xl shadow-sm hover:shadow-xl hover:-translate-y-1 border border-gray-100 transition-all duration-300 overflow-hidden flex flex-col justify-between group">
-                      <div className="relative p-4">
-                        {discountPercent > 0 && <span className="absolute top-5 right-5 bg-red-500 text-white text-xs font-black px-2.5 py-1 rounded-lg z-10 shadow-sm">{discountPercent}% OFF</span>}
-                        <div className="h-52 rounded-2xl bg-gray-50/50 flex items-center justify-center overflow-hidden mb-4 p-4">
-                          {coverImage ? (
-                            <img src={coverImage.image} alt={coverImage.alt_text || product.name} className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-500" />
-                          ) : (
-                            <span className="text-gray-400 font-medium text-sm">No Image</span>
-                          )}
+                    return (
+                      <Link to={`/product/${product.id}`} key={product.id} className="bg-white rounded-3xl shadow-sm hover:shadow-xl hover:-translate-y-1 border border-gray-100 transition-all duration-300 overflow-hidden flex flex-col justify-between group">
+                        <div className="relative p-4">
+                          {discountPercent > 0 && <span className="absolute top-5 right-5 bg-red-500 text-white text-xs font-black px-2.5 py-1 rounded-lg z-10 shadow-sm">{discountPercent}% OFF</span>}
+                          <div className="h-52 rounded-2xl bg-gray-50/50 flex items-center justify-center overflow-hidden mb-4 p-4">
+                            {coverImage ? (
+                              <img src={coverImage.image} alt={coverImage.alt_text || product.name} className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-500" />
+                            ) : (
+                              <span className="text-gray-400 font-medium text-sm">No Image</span>
+                            )}
+                          </div>
+                          <div>
+                            <p className="text-xs text-blue-600 font-bold uppercase mb-1 tracking-wider">{finalBrandName}</p>
+                            <h3 className="font-bold text-gray-900 text-base mb-1 line-clamp-2 leading-tight group-hover:text-blue-600 transition-colors">{product.name}</h3>
+                          </div>
                         </div>
-                        <div>
-                          <p className="text-xs text-blue-600 font-bold uppercase mb-1 tracking-wider">{finalBrandName}</p>
-                          <h3 className="font-bold text-gray-900 text-base mb-1 line-clamp-2 leading-tight group-hover:text-blue-600 transition-colors">{product.name}</h3>
-                        </div>
-                      </div>
-                      <div className="px-5 pb-5 pt-0 flex justify-between items-end">
-                        <div className="flex flex-col">
-                          {discountPercent > 0 ? (
-                            <>
-                              <span className="text-xs text-gray-400 line-through decoration-gray-300 font-medium">${originalPrice.toLocaleString()}</span>
+                        <div className="px-5 pb-5 pt-0 flex justify-between items-end">
+                          <div className="flex flex-col">
+                            {discountPercent > 0 ? (
+                              <>
+                                <span className="text-xs text-gray-400 line-through decoration-gray-300 font-medium">${originalPrice.toLocaleString()}</span>
+                                <span className="font-black text-gray-900 text-xl">${finalPrice.toLocaleString()}</span>
+                              </>
+                            ) : (
                               <span className="font-black text-gray-900 text-xl">${finalPrice.toLocaleString()}</span>
-                            </>
-                          ) : (
-                            <span className="font-black text-gray-900 text-xl">${finalPrice.toLocaleString()}</span>
-                          )}
+                            )}
+                          </div>
+                          <div className="flex items-center text-sm bg-yellow-50 px-2 py-1 rounded-lg">
+                            <span className="text-yellow-500 mr-1 text-xs">★</span>
+                            <span className="font-bold text-yellow-700">{product.average_rating ? Number(product.average_rating).toFixed(1) : 'New'}</span>
+                          </div>
                         </div>
-                        <div className="flex items-center text-sm bg-yellow-50 px-2 py-1 rounded-lg">
-                          <span className="text-yellow-500 mr-1 text-xs">★</span>
-                          <span className="font-bold text-yellow-700">{product.average_rating ? Number(product.average_rating).toFixed(1) : 'New'}</span>
-                        </div>
-                      </div>
-                    </Link>
-                  );
-                })}
-              </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+
+                {/* ==========================================
+                    دکمه مشاهده بیشتر (Load More)
+                ========================================== */}
+                {hasNextPage && (
+                  <div className="mt-12 flex justify-center">
+                    <button
+                      onClick={() => fetchNextPage()}
+                      disabled={isFetchingNextPage}
+                      className="flex items-center gap-2 px-8 py-3 bg-white border-2 border-blue-600 text-blue-600 font-bold rounded-2xl hover:bg-blue-50 transition-colors disabled:border-gray-300 disabled:text-gray-400 disabled:bg-gray-50"
+                    >
+                      {isFetchingNextPage ? (
+                        <>
+                          <Loader2 size={20} className="animate-spin" />
+                          Loading...
+                        </>
+                      ) : (
+                        'Load More Products'
+                      )}
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>
