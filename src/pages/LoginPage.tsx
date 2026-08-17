@@ -2,12 +2,12 @@
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query'; // 👈 useQueryClient اضافه شد
 import { api } from '../services/api';
 import { useAuthStore } from '../store/authStore';
+import { useCartStore } from '../store/cartStore'; // 👈 استور سبد خرید اضافه شد
 import { useNavigate, Link } from 'react-router-dom';
 
-// ۱. تغییر از username به email تو اسکیما
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
   password: z.string().min(1, "Password is required"),
@@ -16,7 +16,9 @@ const loginSchema = z.object({
 type LoginFormData = z.infer<typeof loginSchema>;
 
 function LoginPage() {
-  const setTokens = useAuthStore((state) => state.setTokens); // جایگزین setAccessToken شد;
+  const setTokens = useAuthStore((state) => state.setTokens); 
+  const { localItems, clearCart } = useCartStore(); // 👈 استخراج دیتای مرورگر و تابع پاکسازی
+  const queryClient = useQueryClient(); // 👈 برای رفرش کردن دیتای ریکت‌کوئری
   const navigate = useNavigate();
 
   const {
@@ -29,23 +31,41 @@ function LoginPage() {
 
   const loginMutation = useMutation({
     mutationFn: async (data: LoginFormData) => {
-      // الان دیتا شامل { email: '...', password: '...' } هست که دقیقاً همون چیزیه که جنگو میخواد
       const response = await api.post('/token/', data); 
       return response.data;
     },
-    onSuccess: (data) => {
-    //console.log("LOGIN RESPONSE:", data);
+    onSuccess: async (data) => {
+      // ۱. ذخیره توکن‌ها
+      setTokens(
+        data.access,
+        data.refresh,
+        data.is_staff
+      );
 
-    setTokens(
-      data.access,
-      data.refresh,
-      data.is_staff
-    );
+      // ۲. 👈 سینک کردن سبد خرید مهمان با دیتابیس بک‌اند
+      if (localItems.length > 0) {
+  try {
+    await api.post('/cart/items/sync/', {
+      items: localItems
+    });
 
-  navigate('/');
-},
+    // فقط اگر sync موفق بود localStorage را پاک کن
+    clearCart();
+
+    // دوباره سبد خرید سرور را بگیر
+    await queryClient.invalidateQueries({
+      queryKey: ['cart']
+    });
+
+  } catch (error) {
+    console.error('Failed to sync cart:', error);
+  }
+}
+
+      // ۳. هدایت کاربر به سبد خرید تا محصولات منتقل‌شده‌اش رو ببینه
+      navigate('/cart');
+    },
     onError: (error: any) => {
-      // اگر ۴۰۱ داد یعنی ایمیل یا پسورد اشتباهه
       if (error.response?.status === 401) {
           alert("Invalid email or password.");
       } else {
@@ -65,7 +85,6 @@ function LoginPage() {
         
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           <div>
-            {/* ۲. لیبل و تایپ فیلد به ایمیل تغییر کرد */}
             <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
             <input
               {...register('email')}
@@ -90,7 +109,6 @@ function LoginPage() {
             />
             {errors.password && <p className="text-red-500 text-sm mt-1">{errors.password.message}</p>}
             
-            {/* این قسمت اضافه شد */}
             <div className="flex justify-end mt-2">
               <Link to="/forgot-password" className="text-sm text-blue-600 hover:underline font-medium">
                 Forgot your password?
