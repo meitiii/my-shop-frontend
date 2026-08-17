@@ -11,7 +11,7 @@ interface Variant {
   size: string | null;
   price: number;
   stock: number;
-  discount_percent: number; // اضافه شدن فیلد تخفیف
+  discount_percent: number;
 }
 
 interface ProductImage {
@@ -20,13 +20,15 @@ interface ProductImage {
   alt_text: string | null;
   is_main: boolean;
 }
+
 interface ProductDetailData {
   id: number;
   name: string;
   short_description: string;
   description: string;
-  features: string;
-  technical_specs: string;
+  // 👈 آپدیت تایپ‌ها برای پشتیبانی از دیتای جدید و قدیم
+  features: string[] | string; 
+  technical_specs: Record<string, string> | string; 
   brand: number | null;
   brand_name: string | null;
   weight: string;
@@ -61,7 +63,6 @@ export default function ProductDetailPage() {
     },
   });
 
-  // پیدا کردن عکس کاور و تنظیم اون به عنوان عکسی که همون اول لود میشه
   useEffect(() => {
     if (product?.images) {
       const mainIndex = product.images.findIndex(img => img.is_main);
@@ -96,7 +97,6 @@ export default function ProductDetailPage() {
     }
   };
 
-  // محاسبه قیمت تخفیف خورده برای Variant انتخاب شده
   const originalPrice = currentVariant ? currentVariant.price : 0;
   const discountPercent = currentVariant?.discount_percent || 0;
   const finalPrice = originalPrice - (originalPrice * (discountPercent / 100));
@@ -116,7 +116,6 @@ export default function ProductDetailPage() {
           
           <div className="md:w-1/2 flex flex-col gap-4">
             <div className="aspect-square bg-white border rounded-2xl overflow-hidden flex items-center justify-center p-4 relative">
-              {/* برچسب تخفیف روی عکس اصلی */}
               {discountPercent > 0 && (
                 <span className="absolute top-4 left-4 bg-red-500 text-white text-sm font-bold px-3 py-1.5 rounded-lg shadow-md z-10">
                   {discountPercent}% OFF
@@ -251,21 +250,40 @@ export default function ProductDetailPage() {
               </p>
             </div>
 
+            {/* 👈 آپدیت رندر ویژگی‌ها */}
             {product.features && (
               <div className="bg-white rounded-2xl shadow-sm p-6 md:p-8">
                 <h2 className="text-xl font-bold text-gray-900 mb-6 border-b pb-4">Key Features</h2>
-                <ul className="list-disc list-inside space-y-2 text-gray-700 whitespace-pre-line">
-                  {product.features}
+                <ul className="list-disc list-inside space-y-2 text-gray-700">
+                  {Array.isArray(product.features) ? (
+                    product.features.map((feature, idx) => (
+                      <li key={idx}>{feature}</li>
+                    ))
+                  ) : (
+                    <li className="whitespace-pre-line">{product.features}</li>
+                  )}
                 </ul>
               </div>
             )}
             
+            {/* 👈 آپدیت رندر مشخصات فنی به صورت گرید منظم */}
             {product.technical_specs && (
               <div className="bg-white rounded-2xl shadow-sm p-6 md:p-8">
                 <h2 className="text-xl font-bold text-gray-900 mb-6 border-b pb-4">Technical Specifications</h2>
-                <p className="text-gray-700 leading-loose whitespace-pre-line">
-                  {product.technical_specs}
-                </p>
+                {typeof product.technical_specs === 'object' && !Array.isArray(product.technical_specs) ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-8">
+                    {Object.entries(product.technical_specs).map(([key, value], idx) => (
+                      <div key={idx} className="flex flex-col border-b border-gray-100 pb-3">
+                        <span className="text-sm text-gray-500 font-medium">{key}</span>
+                        <span className="text-gray-900 font-semibold mt-1">{value}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-gray-700 leading-loose whitespace-pre-line">
+                    {product.technical_specs}
+                  </p>
+                )}
               </div>
             )}
           </div>
@@ -276,13 +294,13 @@ export default function ProductDetailPage() {
               <div className="space-y-4 text-sm">
                 
                 {product.brand_name && (
-  <div className="flex justify-between border-b border-gray-50 pb-3">
-    <span className="text-gray-500">Brand</span>
-    <span className="font-semibold text-gray-900">
-      {product.brand_name}
-    </span>
-  </div>
-)}
+                  <div className="flex justify-between border-b border-gray-50 pb-3">
+                    <span className="text-gray-500">Brand</span>
+                    <span className="font-semibold text-gray-900">
+                      {product.brand_name}
+                    </span>
+                  </div>
+                )}
                 
                 {product.weight && (
                   <div className="flex justify-between border-b border-gray-50 pb-3">

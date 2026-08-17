@@ -5,7 +5,8 @@ import { api } from '../services/api';
 import { Link, useParams, useNavigate, useLocation } from 'react-router-dom';
 import { 
   Search, SlidersHorizontal, X, PackageOpen, 
-  DollarSign, ChevronDown, LayoutGrid, Tag 
+  DollarSign, ChevronDown, LayoutGrid, Tag,
+  Cpu // آیکون جدید برای فیلترهای داینامیک
 } from 'lucide-react';
 
 interface ProductImage {
@@ -44,7 +45,8 @@ const fetchProducts = async (
   ordering: string,
   inStock: boolean,
   minPrice: string | number,
-  maxPrice: string | number
+  maxPrice: string | number,
+  dynamicFilters: Record<string, string[]> // 👈 فیلترهای داینامیک اضافه شد
 ) => {
   const params: any = {};
   if (search) params.search = search;
@@ -56,11 +58,24 @@ const fetchProducts = async (
   if (minPrice) params.min_price = minPrice;
   if (maxPrice) params.max_price = maxPrice;
 
+  // 👈 پردازش فیلترهای داینامیک برای ارسال به بک‌اند
+  Object.entries(dynamicFilters).forEach(([key, values]) => {
+    if (values.length > 0) {
+      if (key === 'Special Features') {
+        // برای ویژگی‌های خاص، پارامتر feature می‌فرستیم
+        // Axios به صورت پیش‌فرض آرایه‌ها رو برای URL سریالایز می‌کنه
+        params.feature = values;
+      } else {
+        // برای مشخصات فنی، مقدار رو می‌فرستیم (فعلاً اولین مقدار انتخاب شده برای هر کلید)
+        params[`spec_${key}`] = values[0];
+      }
+    }
+  });
+
   const response = await api.get('/products/', { params });
   return response.data.results || response.data;
 };
 
-// ماکزیمم قیمت مجاز برای اسلایدر (بسته به واحد پولت می‌تونی این رو تغییر بدی)
 const SLIDER_MAX = 5000; 
 
 export default function SearchPage() {
@@ -68,7 +83,6 @@ export default function SearchPage() {
   const navigate = useNavigate();
   const location = useLocation();
   
-  // استیت‌های جستجو و فیلتر
   const [searchInput, setSearchInput] = useState('');
   const debouncedSearchTerm = useDebounce(searchInput, 500); 
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
@@ -78,16 +92,18 @@ export default function SearchPage() {
   const [inStock, setInStock] = useState(false);
   const [minPrice, setMinPrice] = useState<number | string>('');
   const [maxPrice, setMaxPrice] = useState<number | string>('');
-  
-  // دی‌باونس برای قیمت‌ها
   const debouncedMinPrice = useDebounce(minPrice, 500);
   const debouncedMaxPrice = useDebounce(maxPrice, 500);
 
-  // استیت‌های آکاردئون‌ها (کدام بخش‌ها باز باشند)
+  // 👈 استیت برای ذخیره تیک‌های فیلترهای داینامیک (مثلاً { "RAM": ["8GB"], "Special Features": ["Waterproof"] })
+  const [selectedDynamicFilters, setSelectedDynamicFilters] = useState<Record<string, string[]>>({});
+
   const [isCategoryOpen, setIsCategoryOpen] = useState(true);
   const [isPriceOpen, setIsPriceOpen] = useState(true);
   const [isBrandOpen, setIsBrandOpen] = useState(true);
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
+  // استیت برای مدیریت باز/بسته بودن آکاردئون‌های داینامیک
+  const [openDynamicAccordions, setOpenDynamicAccordions] = useState<Record<string, boolean>>({});
 
   const { data: categories = [] } = useQuery({
     queryKey: ['categories'],
@@ -125,12 +141,34 @@ export default function SearchPage() {
     }
   }, [slug, categories]);
 
+  // 👈 ۱. دریافت فیلترهای داینامیک از بک‌اند بر اساس دسته‌بندی فعلی
+  const { data: availableDynamicFilters = {} } = useQuery({
+    queryKey: ['available-filters', selectedCategory],
+    queryFn: async () => {
+      const params: any = {};
+      if (selectedCategory) params.category = selectedCategory;
+      const response = await api.get('/products/available_filters/', { params });
+      
+      // به طور پیش‌فرض تمام آکاردئون‌های داینامیک رو باز می‌ذاریم
+      const initialAccordionState: Record<string, boolean> = {};
+      Object.keys(response.data).forEach(key => {
+        initialAccordionState[key] = true;
+      });
+      setOpenDynamicAccordions(initialAccordionState);
+      
+      return response.data;
+    },
+  });
+
+  // 👈 ۲. اضافه کردن فیلترهای داینامیک به درخواست دریافت محصولات
   const { data: products, isLoading: productsLoading, isError: productsError } = useQuery({
-    queryKey: ['products', debouncedSearchTerm, selectedCategory, selectedBrands, ordering, inStock, debouncedMinPrice, debouncedMaxPrice],
-    queryFn: () => fetchProducts(debouncedSearchTerm, selectedCategory, selectedBrands, ordering, inStock, debouncedMinPrice, debouncedMaxPrice),
+    queryKey: ['products', debouncedSearchTerm, selectedCategory, selectedBrands, ordering, inStock, debouncedMinPrice, debouncedMaxPrice, selectedDynamicFilters],
+    queryFn: () => fetchProducts(debouncedSearchTerm, selectedCategory, selectedBrands, ordering, inStock, debouncedMinPrice, debouncedMaxPrice, selectedDynamicFilters),
   });
 
   const handleCategoryChange = (cat: any | null) => {
+    // وقتی دسته‌بندی عوض میشه، فیلترهای داینامیک قبلی رو پاک می‌کنیم
+    setSelectedDynamicFilters({});
     if (cat) {
       navigate({ pathname: `/category/${cat.slug}`, search: location.search });
     } else {
@@ -142,6 +180,21 @@ export default function SearchPage() {
     setSelectedBrands(prev => prev.includes(brandId) ? prev.filter(id => id !== brandId) : [...prev, brandId]);
   };
 
+  // تابع برای مدیریت تیک خوردن فیلترهای داینامیک
+  const toggleDynamicFilter = (filterKey: string, filterValue: string) => {
+    setSelectedDynamicFilters(prev => {
+      const currentSelected = prev[filterKey] || [];
+      const isSelected = currentSelected.includes(filterValue);
+      
+      return {
+        ...prev,
+        [filterKey]: isSelected 
+          ? currentSelected.filter(v => v !== filterValue) 
+          : [...currentSelected, filterValue]
+      };
+    });
+  };
+
   const clearFilters = () => {
     setSearchInput('');
     handleCategoryChange(null);
@@ -150,27 +203,25 @@ export default function SearchPage() {
     setInStock(false);
     setMinPrice('');
     setMaxPrice('');
+    setSelectedDynamicFilters({});
   };
 
-  // محاسبه درصد برای نمایش رنگ آبی در نوار اسلایدر
   const minPercent = minPrice ? (Number(minPrice) / SLIDER_MAX) * 100 : 0;
   const maxPercent = maxPrice ? (Number(maxPrice) / SLIDER_MAX) * 100 : 100;
 
-  // کدهای سایدبار به صورت مستقیم در بدنه اصلی (برای جلوگیری از باگ فوکوس)
   const renderSidebarContent = () => (
     <>
       <div className="flex justify-between items-center mb-6">
         <h2 className="font-black text-gray-900 text-xl flex items-center gap-2">
           <SlidersHorizontal size={20} className="text-blue-600" /> Filters
         </h2>
-        {(selectedCategory || selectedBrands.length > 0 || searchInput || inStock || minPrice || maxPrice) && (
+        {(selectedCategory || selectedBrands.length > 0 || searchInput || inStock || minPrice || maxPrice || Object.values(selectedDynamicFilters).some(arr => arr.length > 0)) && (
           <button onClick={clearFilters} className="text-xs text-red-500 bg-red-50 px-2 py-1 rounded-md hover:bg-red-100 font-bold transition-colors">
             Clear All
           </button>
         )}
       </div>
 
-      {/* ۱. سوئیچ موجودی */}
       <div className="mb-6 pb-6 border-b border-gray-100">
         <label className="flex items-center justify-between cursor-pointer group bg-gray-50 p-3 rounded-xl hover:bg-blue-50 transition-colors">
           <div className="flex items-center gap-2 text-gray-800 font-bold text-sm">
@@ -185,33 +236,21 @@ export default function SearchPage() {
         </label>
       </div>
 
-      {/* ۲. آکاردئون دسته‌بندی‌ها */}
       <div className="mb-6 pb-6 border-b border-gray-100">
-        <button 
-          onClick={() => setIsCategoryOpen(!isCategoryOpen)} 
-          className="flex items-center justify-between w-full group"
-        >
+        <button onClick={() => setIsCategoryOpen(!isCategoryOpen)} className="flex items-center justify-between w-full group">
           <h3 className="font-bold text-gray-800 text-sm flex items-center gap-2">
             <LayoutGrid size={18} className="text-gray-400 group-hover:text-blue-600 transition-colors" />
             Categories
           </h3>
           <ChevronDown size={16} className={`text-gray-400 transition-transform duration-300 ${isCategoryOpen ? 'rotate-180' : ''}`} />
         </button>
-        
         <div className={`grid transition-all duration-300 ease-in-out ${isCategoryOpen ? 'grid-rows-[1fr] opacity-100 mt-4' : 'grid-rows-[0fr] opacity-0'}`}>
           <div className="overflow-hidden flex flex-col gap-1">
-            <button 
-              onClick={() => handleCategoryChange(null)}
-              className={`text-left text-sm px-3 py-2 rounded-lg transition-colors ${selectedCategory === null ? 'bg-blue-50 text-blue-700 font-bold' : 'text-gray-600 hover:bg-gray-50'}`}
-            >
+            <button onClick={() => handleCategoryChange(null)} className={`text-left text-sm px-3 py-2 rounded-lg transition-colors ${selectedCategory === null ? 'bg-blue-50 text-blue-700 font-bold' : 'text-gray-600 hover:bg-gray-50'}`}>
               All Products
             </button>
             {categories?.map((cat: any) => (
-              <button 
-                key={cat.id}
-                onClick={() => handleCategoryChange(cat)}
-                className={`text-left text-sm px-3 py-2 rounded-lg transition-colors ${selectedCategory === cat.id ? 'bg-blue-50 text-blue-700 font-bold border-l-2 border-blue-600' : 'text-gray-600 hover:bg-gray-50 border-l-2 border-transparent'}`}
-              >
+              <button key={cat.id} onClick={() => handleCategoryChange(cat)} className={`text-left text-sm px-3 py-2 rounded-lg transition-colors ${selectedCategory === cat.id ? 'bg-blue-50 text-blue-700 font-bold border-l-2 border-blue-600' : 'text-gray-600 hover:bg-gray-50 border-l-2 border-transparent'}`}>
                 {cat.name}
               </button>
             ))}
@@ -219,128 +258,116 @@ export default function SearchPage() {
         </div>
       </div>
 
-      {/* ۳. آکاردئون بازه قیمتی (با اسلایدر دوگانه) */}
       <div className="mb-6 pb-6 border-b border-gray-100">
-        <button 
-          onClick={() => setIsPriceOpen(!isPriceOpen)} 
-          className="flex items-center justify-between w-full group"
-        >
+        <button onClick={() => setIsPriceOpen(!isPriceOpen)} className="flex items-center justify-between w-full group">
           <h3 className="font-bold text-gray-800 text-sm flex items-center gap-2">
             <DollarSign size={18} className="text-gray-400 group-hover:text-blue-600 transition-colors" />
             Price Range
           </h3>
           <ChevronDown size={16} className={`text-gray-400 transition-transform duration-300 ${isPriceOpen ? 'rotate-180' : ''}`} />
         </button>
-
         <div className={`grid transition-all duration-300 ease-in-out ${isPriceOpen ? 'grid-rows-[1fr] opacity-100 mt-5' : 'grid-rows-[0fr] opacity-0'}`}>
           <div className="overflow-hidden px-1">
-            
-            {/* اسلایدر قیمت */}
             <div className="relative h-1.5 w-full bg-gray-200 rounded-full mb-8">
-              {/* نوار آبی بین دو دستگیره */}
-              <div 
-                className="absolute h-full bg-blue-600 rounded-full" 
-                style={{ left: `${minPercent}%`, right: `${100 - maxPercent}%` }}
-              ></div>
-              
-              <input 
-                type="range" 
-                min="0" 
-                max={SLIDER_MAX} 
-                value={minPrice || 0} 
-                onChange={(e) => {
-                  const val = Number(e.target.value);
-                  if (!maxPrice || val <= Number(maxPrice)) setMinPrice(val);
-                }} 
-                className="absolute w-full -top-1.5 h-1.5 appearance-none bg-transparent pointer-events-none dual-range" 
-              />
-              <input 
-                type="range" 
-                min="0" 
-                max={SLIDER_MAX} 
-                value={maxPrice || SLIDER_MAX} 
-                onChange={(e) => {
-                  const val = Number(e.target.value);
-                  if (!minPrice || val >= Number(minPrice)) setMaxPrice(val);
-                }} 
-                className="absolute w-full -top-1.5 h-1.5 appearance-none bg-transparent pointer-events-none dual-range" 
-              />
+              <div className="absolute h-full bg-blue-600 rounded-full" style={{ left: `${minPercent}%`, right: `${100 - maxPercent}%` }}></div>
+              <input type="range" min="0" max={SLIDER_MAX} value={minPrice || 0} onChange={(e) => { const val = Number(e.target.value); if (!maxPrice || val <= Number(maxPrice)) setMinPrice(val); }} className="absolute w-full -top-1.5 h-1.5 appearance-none bg-transparent pointer-events-none dual-range" />
+              <input type="range" min="0" max={SLIDER_MAX} value={maxPrice || SLIDER_MAX} onChange={(e) => { const val = Number(e.target.value); if (!minPrice || val >= Number(minPrice)) setMaxPrice(val); }} className="absolute w-full -top-1.5 h-1.5 appearance-none bg-transparent pointer-events-none dual-range" />
             </div>
-
-            {/* اینپوت‌های عددی */}
             <div className="flex items-center gap-3">
               <div className="relative flex-1">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">$</span>
-                <input 
-                  type="number" 
-                  value={minPrice} 
-                  onChange={(e) => setMinPrice(e.target.value)} 
-                  className="w-full pl-6 pr-2 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all font-semibold text-gray-700"
-                />
+                <input type="number" value={minPrice} onChange={(e) => setMinPrice(e.target.value)} className="w-full pl-6 pr-2 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all font-semibold text-gray-700" />
               </div>
               <span className="text-gray-300">-</span>
               <div className="relative flex-1">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">$</span>
-                <input 
-                  type="number" 
-                  value={maxPrice} 
-                  onChange={(e) => setMaxPrice(e.target.value)} 
-                  className="w-full pl-6 pr-2 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all font-semibold text-gray-700"
-                />
+                <input type="number" value={maxPrice} onChange={(e) => setMaxPrice(e.target.value)} className="w-full pl-6 pr-2 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all font-semibold text-gray-700" />
               </div>
             </div>
-
           </div>
         </div>
       </div>
 
-      {/* ۴. آکاردئون برندها */}
-      <div>
-        <button 
-          onClick={() => setIsBrandOpen(!isBrandOpen)} 
-          className="flex items-center justify-between w-full group"
-        >
+      <div className="mb-6 pb-6 border-b border-gray-100">
+        <button onClick={() => setIsBrandOpen(!isBrandOpen)} className="flex items-center justify-between w-full group">
           <h3 className="font-bold text-gray-800 text-sm flex items-center gap-2">
             <Tag size={18} className="text-gray-400 group-hover:text-blue-600 transition-colors" />
             Brands
           </h3>
           <ChevronDown size={16} className={`text-gray-400 transition-transform duration-300 ${isBrandOpen ? 'rotate-180' : ''}`} />
         </button>
-        
         <div className={`grid transition-all duration-300 ease-in-out ${isBrandOpen ? 'grid-rows-[1fr] opacity-100 mt-4' : 'grid-rows-[0fr] opacity-0'}`}>
           <div className="overflow-hidden">
             <div className="flex flex-col gap-3 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
               {brands?.map((brand: any) => (
                 <label key={brand.id} className="flex items-center gap-3 cursor-pointer group">
                   <div className="relative flex items-center">
-                    <input 
-                      type="checkbox" 
-                      checked={selectedBrands.includes(brand.id)} 
-                      onChange={() => toggleBrand(brand.id)} 
-                      className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer transition-all peer" 
-                    />
+                    <input type="checkbox" checked={selectedBrands.includes(brand.id)} onChange={() => toggleBrand(brand.id)} className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer transition-all peer" />
                   </div>
-                  <span className={`text-sm transition-colors ${selectedBrands.includes(brand.id) ? 'font-bold text-gray-900' : 'text-gray-600 group-hover:text-gray-900'}`}>
-                    {brand.name}
-                  </span>
+                  <span className={`text-sm transition-colors ${selectedBrands.includes(brand.id) ? 'font-bold text-gray-900' : 'text-gray-600 group-hover:text-gray-900'}`}>{brand.name}</span>
                 </label>
               ))}
-              {(!brands || brands.length === 0) && (
-                <p className="text-sm text-gray-400">No brands available</p>
-              )}
+              {(!brands || brands.length === 0) && <p className="text-sm text-gray-400">No brands available</p>}
             </div>
           </div>
         </div>
       </div>
+
+      {/* ==========================================
+          رندر داینامیک فیلترهای استخراج شده از بک‌اند
+      ========================================== */}
+      {Object.entries(availableDynamicFilters).map(([filterKey, filterValues]: [string, any]) => {
+        const isOpen = openDynamicAccordions[filterKey] ?? true;
+        const isSpecialFeature = filterKey === 'Special Features';
+
+        return (
+          <div key={filterKey} className="mb-6 pb-6 border-b border-gray-100 last:border-b-0 last:pb-0 last:mb-0">
+            <button 
+              onClick={() => setOpenDynamicAccordions(prev => ({ ...prev, [filterKey]: !isOpen }))} 
+              className="flex items-center justify-between w-full group"
+            >
+              <h3 className="font-bold text-gray-800 text-sm flex items-center gap-2">
+                {/* اگر ویژگی خاص بود آیکون ستاره، وگرنه آیکون پردازنده/سخت‌افزار */}
+                {isSpecialFeature 
+                  ? <Tag size={18} className="text-orange-400 group-hover:text-orange-600 transition-colors" /> 
+                  : <Cpu size={18} className="text-gray-400 group-hover:text-blue-600 transition-colors" />
+                }
+                {filterKey}
+              </h3>
+              <ChevronDown size={16} className={`text-gray-400 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
+            </button>
+            <div className={`grid transition-all duration-300 ease-in-out ${isOpen ? 'grid-rows-[1fr] opacity-100 mt-4' : 'grid-rows-[0fr] opacity-0'}`}>
+              <div className="overflow-hidden">
+                <div className="flex flex-col gap-3 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
+                  {filterValues.map((val: string) => {
+                    const isChecked = selectedDynamicFilters[filterKey]?.includes(val) || false;
+                    return (
+                      <label key={val} className="flex items-center gap-3 cursor-pointer group">
+                        <div className="relative flex items-center">
+                          <input 
+                            type="checkbox" 
+                            checked={isChecked} 
+                            onChange={() => toggleDynamicFilter(filterKey, val)} 
+                            className={`w-5 h-5 rounded border-gray-300 cursor-pointer transition-all peer ${isSpecialFeature ? 'text-orange-500 focus:ring-orange-500' : 'text-blue-600 focus:ring-blue-500'}`} 
+                          />
+                        </div>
+                        <span className={`text-sm transition-colors ${isChecked ? 'font-bold text-gray-900' : 'text-gray-600 group-hover:text-gray-900'}`}>
+                          {val}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })}
     </>
   );
 
   return (
     <div className="bg-gray-50 min-h-screen py-8">
-      {/* 
-        استایل‌های اختصاصی برای دستگیره‌های اسلایدر دوگانه
-        این کد باعث میشه دستگیره‌ها روی هم قابل کلیک باشن
-      */}
       <style>{`
         .dual-range::-webkit-slider-thumb {
           pointer-events: auto;
@@ -353,9 +380,7 @@ export default function SearchPage() {
           box-shadow: 0 0 0 3px white, 0 4px 6px -1px rgb(0 0 0 / 0.1);
           transition: transform 0.1s;
         }
-        .dual-range::-webkit-slider-thumb:hover {
-          transform: scale(1.1);
-        }
+        .dual-range::-webkit-slider-thumb:hover { transform: scale(1.1); }
         .dual-range::-moz-range-thumb {
           pointer-events: auto;
           width: 20px;
@@ -397,14 +422,12 @@ export default function SearchPage() {
 
         <div className="flex flex-col md:flex-row gap-8">
           
-          {/* سایدبار دسکتاپ */}
           <div className="hidden md:block w-72 flex-shrink-0">
             <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-6 sticky top-24">
               {renderSidebarContent()}
             </div>
           </div>
 
-          {/* مودال سایدبار موبایل */}
           {isMobileFiltersOpen && (
             <div className="fixed inset-0 z-50 flex md:hidden">
               <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setIsMobileFiltersOpen(false)}></div>
@@ -417,7 +440,6 @@ export default function SearchPage() {
 
           <div className="flex-1 flex flex-col">
             
-            {/* نوار مرتب‌سازی */}
             <div className="flex items-center gap-4 mb-6 bg-white p-2 md:p-3 rounded-2xl shadow-sm border border-gray-100 overflow-x-auto hide-scrollbar">
               <span className="text-gray-500 font-bold text-sm flex items-center gap-1.5 ml-2 whitespace-nowrap">Sort by:</span>
               <div className="flex gap-2">
@@ -441,7 +463,6 @@ export default function SearchPage() {
               </div>
             </div>
 
-            {/* گرید محصولات */}
             {productsLoading ? (
               <div className="flex flex-col items-center justify-center h-80 bg-white rounded-3xl border border-gray-100 shadow-sm">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
