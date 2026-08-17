@@ -515,39 +515,74 @@ export default function SearchPage() {
                     const finalBrandName = product.brand_name || matchedBrand?.name || 'Unbranded';
 
                     return (
-                      <Link to={`/product/${product.id}`} key={product.id} className="bg-white rounded-3xl shadow-sm hover:shadow-xl hover:-translate-y-1 border border-gray-100 transition-all duration-300 overflow-hidden flex flex-col justify-between group">
-                        <div className="relative p-4">
-                          {discountPercent > 0 && <span className="absolute top-5 right-5 bg-red-500 text-white text-xs font-black px-2.5 py-1 rounded-lg z-10 shadow-sm">{discountPercent}% OFF</span>}
-                          <div className="h-52 rounded-2xl bg-gray-50/50 flex items-center justify-center overflow-hidden mb-4 p-4">
-                            {coverImage ? (
-                              <img src={coverImage.image} alt={coverImage.alt_text || product.name} className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-500" />
-                            ) : (
-                              <span className="text-gray-400 font-medium text-sm">No Image</span>
-                            )}
-                          </div>
-                          <div>
-                            <p className="text-xs text-blue-600 font-bold uppercase mb-1 tracking-wider">{finalBrandName}</p>
-                            <h3 className="font-bold text-gray-900 text-base mb-1 line-clamp-2 leading-tight group-hover:text-blue-600 transition-colors">{product.name}</h3>
-                          </div>
-                        </div>
-                        <div className="px-5 pb-5 pt-0 flex justify-between items-end">
-                          <div className="flex flex-col">
-                            {discountPercent > 0 ? (
-                              <>
-                                <span className="text-xs text-gray-400 line-through decoration-gray-300 font-medium">${originalPrice.toLocaleString()}</span>
-                                <span className="font-black text-gray-900 text-xl">${finalPrice.toLocaleString()}</span>
-                              </>
-                            ) : (
-                              <span className="font-black text-gray-900 text-xl">${finalPrice.toLocaleString()}</span>
-                            )}
-                          </div>
-                          <div className="flex items-center text-sm bg-yellow-50 px-2 py-1 rounded-lg">
-                            <span className="text-yellow-500 mr-1 text-xs">★</span>
-                            <span className="font-bold text-yellow-700">{product.average_rating ? Number(product.average_rating).toFixed(1) : 'New'}</span>
-                          </div>
-                        </div>
-                      </Link>
-                    );
+  <Link
+    to={`/product/${product.id}`}
+    key={product.id}
+    className="bg-white rounded-3xl shadow-sm hover:shadow-2xl hover:scale-105 border border-gray-100 transition-all duration-300 overflow-hidden flex flex-col justify-between group z-0 hover:z-10 relative"
+  >
+    <div className="relative p-4">
+      {discountPercent > 0 && (
+        <span className="absolute top-5 right-5 bg-red-500 text-white text-xs font-black px-2.5 py-1 rounded-lg z-10 shadow-sm">
+          {discountPercent}% OFF
+        </span>
+      )}
+
+      <div className="h-52 rounded-2xl bg-gray-50/50 flex items-center justify-center overflow-hidden mb-4 p-4">
+        {coverImage ? (
+          <img
+            src={coverImage.image}
+            alt={coverImage.alt_text || product.name}
+            className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500"
+          />
+        ) : (
+          <span className="text-gray-400 font-medium text-sm">
+            No Image
+          </span>
+        )}
+      </div>
+
+      <div>
+        <p className="text-xs text-blue-600 font-bold uppercase mb-1 tracking-wider">
+          {finalBrandName}
+        </p>
+
+        <h3 className="font-bold text-gray-900 text-base mb-1 line-clamp-2 leading-tight group-hover:text-blue-600 transition-colors">
+          {product.name}
+        </h3>
+      </div>
+    </div>
+
+    <div className="px-5 pb-5 pt-0 flex justify-between items-end">
+      <div className="flex flex-col">
+        {discountPercent > 0 ? (
+          <>
+            <span className="text-xs text-gray-400 line-through decoration-gray-300 font-medium">
+              ${originalPrice.toLocaleString()}
+            </span>
+
+            <span className="font-black text-gray-900 text-xl">
+              ${finalPrice.toLocaleString()}
+            </span>
+          </>
+        ) : (
+          <span className="font-black text-gray-900 text-xl">
+            ${finalPrice.toLocaleString()}
+          </span>
+        )}
+      </div>
+
+      <div className="flex items-center text-sm bg-yellow-50 px-2 py-1 rounded-lg">
+        <span className="text-yellow-500 mr-1 text-xs">★</span>
+
+        <span className="font-bold text-yellow-700">
+          {product.average_rating
+            ? Number(product.average_rating).toFixed(1)
+            : "New"}
+        </span>
+      </div>
+    </div>
+  </Link>
+);
                   })}
                 </div>
 

@@ -4,6 +4,8 @@ import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { api } from '../services/api';
 import ProductReviews from '../components/ProductReviews';
+import { useAuthStore } from '../store/authStore'; // 👈 اضافه شد
+import { useCartStore } from '../store/cartStore'; // 👈 اضافه شد
 
 interface Variant {
   id: number;
@@ -26,7 +28,6 @@ interface ProductDetailData {
   name: string;
   short_description: string;
   description: string;
-  // 👈 آپدیت تایپ‌ها برای پشتیبانی از دیتای جدید و قدیم
   features: string[] | string; 
   technical_specs: Record<string, string> | string; 
   brand: number | null;
@@ -42,7 +43,7 @@ interface ProductDetailData {
   variants: Variant[];
 }
 
-const addToCart = async (variantId: number) => {
+const addToCartAPI = async (variantId: number) => {
   const response = await api.post('/cart/items/', {
     variant: variantId,
     quantity: 1, 
@@ -54,6 +55,11 @@ export default function ProductDetailPage() {
   const { id } = useParams();
   const [selectedVariantId, setSelectedVariantId] = useState<number | null>(null);
   const [activeImageIndex, setActiveImageIndex] = useState<number>(0);
+
+  // 👈 استخراج وضعیت لاگین و توابع سبد خرید لوکال
+  const { accessToken } = useAuthStore();
+  const isAuthenticated = !!accessToken;
+  const { addItem: addLocalItem } = useCartStore();
 
   const { data: product, isLoading, isError } = useQuery({
     queryKey: ['product', id],
@@ -71,16 +77,12 @@ export default function ProductDetailPage() {
   }, [product]);
 
   const mutation = useMutation({
-    mutationFn: addToCart,
+    mutationFn: addToCartAPI,
     onSuccess: () => {
       alert('Successfully added to cart!'); 
     },
     onError: (error: any) => {
-      if (error.response?.status === 401) {
-        alert('Please login to add items to your cart.');
-      } else {
-        alert('Failed to add to cart. Please try again.');
-      }
+      alert(error.response?.data?.error || 'Failed to add to cart. Please try again.');
     }
   });
 
@@ -91,15 +93,31 @@ export default function ProductDetailPage() {
     ? product.variants?.find(v => v.id === selectedVariantId) 
     : product.variants?.[0];
 
-  const handleAddToCart = () => {
-    if (currentVariant) {
-      mutation.mutate(currentVariant.id);
-    }
-  };
-
   const originalPrice = currentVariant ? currentVariant.price : 0;
   const discountPercent = currentVariant?.discount_percent || 0;
   const finalPrice = originalPrice - (originalPrice * (discountPercent / 100));
+
+  // 👈 منطق هیبریدی افزودن به سبد خرید
+  const handleAddToCart = () => {
+    if (!currentVariant) return;
+
+    if (isAuthenticated) {
+      // کاربر لاگین کرده: ارسال به بک‌اند
+      mutation.mutate(currentVariant.id);
+    } else {
+      // کاربر مهمان: ذخیره در مرورگر
+      addLocalItem({
+        variant: currentVariant.id,
+        quantity: 1,
+        variant_name: `${product.name} - ${currentVariant.color || ''} ${currentVariant.size || ''}`,
+        price: finalPrice,
+        stock: currentVariant.stock,
+        image: product.images?.find(i => i.is_main)?.image || product.images?.[0]?.image || null,
+        product_id: product.id,
+      });
+      alert('Successfully added to your offline cart!');
+    }
+  };
 
   return (
     <div className="bg-gray-50 min-h-screen pb-12">
@@ -250,7 +268,6 @@ export default function ProductDetailPage() {
               </p>
             </div>
 
-            {/* 👈 آپدیت رندر ویژگی‌ها */}
             {product.features && (
               <div className="bg-white rounded-2xl shadow-sm p-6 md:p-8">
                 <h2 className="text-xl font-bold text-gray-900 mb-6 border-b pb-4">Key Features</h2>
@@ -266,7 +283,6 @@ export default function ProductDetailPage() {
               </div>
             )}
             
-            {/* 👈 آپدیت رندر مشخصات فنی به صورت گرید منظم */}
             {product.technical_specs && (
               <div className="bg-white rounded-2xl shadow-sm p-6 md:p-8">
                 <h2 className="text-xl font-bold text-gray-900 mb-6 border-b pb-4">Technical Specifications</h2>
