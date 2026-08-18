@@ -116,9 +116,10 @@ export default function CartPage() {
   const handleCheckoutClick = () => {
     if (!isAuthenticated) {
       alert("Please login to proceed to checkout.");
-      navigate('/login'); // کاربر مهمان باید لاگین کند
+      navigate('/login'); 
     } else {
-      checkoutMutation.mutate();
+      // 👈 حالا کاربر رو می‌فرستیم به صفحه انتخاب آدرس
+      navigate('/checkout'); 
     }
   };
 

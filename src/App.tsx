@@ -21,7 +21,7 @@ import Footer from './components/Footer';
 import Header from './components/Header'; 
 import type { ReactNode } from 'react';
 import AdminSlidersPage from './pages/admin/AdminSlidersPage';
-
+import CheckoutPage from './pages/CheckoutPage';
 const AdminRoute = ({ children }: { children: ReactNode }) => {
   const isAdmin = useAuthStore((state) => state.isAdmin);
 
@@ -68,7 +68,7 @@ function AppContent() {
           {/* Auth Extras */}
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password/:uid/:token" element={<ResetPasswordPage />} />  
-
+          <Route path="/checkout" element={<CheckoutPage />} />
           
           <Route path="*" element={<div className="p-8 text-center text-red-500 font-bold text-xl">Page Not Found (404)</div>} />
         </Routes>
